@@ -1,4 +1,3 @@
-
 #include "stdafx.h"
 #include "Crypter.h"
 
@@ -129,5 +128,3 @@ unsigned char* RSACrypter::decryptData(char* data, int sizeData, int *sizeOutput
 
         return plainText;
 }
-
-// https://shanetully.com/2012/04/simple-public-key-encryption-with-rsa-and-openssl/

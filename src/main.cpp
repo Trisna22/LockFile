@@ -1,4 +1,4 @@
-#include "RSACrypter.h"
+#include "Crypter.h"
 
 void usage() {
         string usageStr = "Usage: LockFile [options] <file>";

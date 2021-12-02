@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include "Crypter.h"
 
 #ifndef RSACrypter_H
 #define RSACrypter_H

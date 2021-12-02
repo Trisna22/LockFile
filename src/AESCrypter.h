@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "Crypter.h"
+#include "Utils.h"
 
 #ifndef AESCrypter_H
 #define AESCrypter_H
@@ -8,8 +8,10 @@ class AESCrypter {
 public:
         AESCrypter();
         ~AESCrypter();
-        bool setKey(string key, int keyLen, string iv, bool decrypt);
+        void createRandomKey(char*);
+        void setIv(char*);
         string getIv();
+        bool setKey(string key, int keyLen, string iv, bool decrypt);
 
         unsigned char* encryptData(char* data, int sizeData, int *sizeOutput);
         unsigned char* decryptData(char* data, int sizeData, int* sizeOutput);
@@ -44,6 +46,26 @@ AESCrypter::~AESCrypter()
         EVP_CIPHER_CTX_free(this->cipherContext);
 }
 
+void AESCrypter::createRandomKey(char* key)
+{
+        unsigned char randomKey[32];
+        RAND_bytes(randomKey, 32);
+
+        for (int i = 0; i < 32; i++)
+                key[i] = randomKey[i];
+}
+
+void AESCrypter::setIv(char* iv)
+{
+        char* decodedIV = Utils::convertToBinary(this->IV);
+        for (int i = 0; i < 16; i++)
+                iv[i] = decodedIV[i];
+}
+
+string AESCrypter::getIv() {
+        return this->IV;
+}
+
 bool AESCrypter::setKey(string key, int lenKey, string strIV = "", bool decrypt = false)
 {
         // Generate random IV.
@@ -67,7 +89,7 @@ bool AESCrypter::setKey(string key, int lenKey, string strIV = "", bool decrypt 
 
         if (decrypt == false) {
 
-                this->IV = Crypter::convertToHex((char*)iv_enc, 16);
+                this->IV = Utils::convertToHex((char*)iv_enc, 16);
 
                 if (EVP_EncryptInit_ex(this->cipherContext, encryptionMethod, NULL, (unsigned char*)key.c_str(), iv_enc) == 0) {
 
@@ -80,7 +102,7 @@ bool AESCrypter::setKey(string key, int lenKey, string strIV = "", bool decrypt 
         else {
                 this->IV = strIV; // IV from parameter.
 
-                char* decodedIV = Crypter::convertToBinary(strIV);
+                char* decodedIV = Utils::convertToBinary(strIV);
                 if (EVP_DecryptInit_ex(this->cipherContext, encryptionMethod, NULL, (unsigned char*)key.c_str(), (unsigned char*)decodedIV) == 0) {
                         printf("# Failed initialize decryption AES in our context!\n\n");
                         ERR_print_errors_fp(stderr);
@@ -89,10 +111,6 @@ bool AESCrypter::setKey(string key, int lenKey, string strIV = "", bool decrypt 
         }
 
         return true;
-}
-
-string AESCrypter::getIv() {
-        return this->IV;
 }
 
 unsigned char* AESCrypter::encryptData(char* data, int sizeData, int *sizeOutput) 
@@ -261,6 +279,8 @@ bool AESCrypter::decryptFile(FILE* inputFile, FILE* outputFile, unsigned long* s
 
         *sizeOutput += outputBufferSize;
 
+        free(inputBuffer);
+        free(outputBuffer);
         fclose(inputFile);
         fclose(outputFile);
         return true;

@@ -33,5 +33,6 @@
 
 # Custom
 .gdb_history
+.vscode
 peda-session-LockFile.txt
 testFiles

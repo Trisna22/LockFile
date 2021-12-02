@@ -7,12 +7,16 @@
 
 #define READ_SIZE       4096
 #define LOG_ALL
+#define SINGLE_FILE     0x01
 
 class Crypter {
 public:
 	Crypter();
         ~Crypter();
         bool createCryptFile(string target);
+        bool decryptCryptFile(string target);
+        bool readCryptHeader(string target);
+        bool readCryptFiles(string target);
 	bool checkCryptFile(string fileName);
 private:
         struct CryptFile {
@@ -86,7 +90,7 @@ bool Crypter::createCryptFile(string target)
         else {
                 CryptFile cryptFile = this->encryptFile(target);
                 
-                this->cryptHeader.countFileInfos = 1;
+                this->cryptHeader.countFileInfos = SINGLE_FILE;
                 
                 // Write the header to the file.
                 fwrite(&this->cryptHeader, 1, sizeof(this->cryptHeader), outputFile);
@@ -117,7 +121,7 @@ bool Crypter::createCryptFile(string target)
                 printf("  Filename length:  %d\n", cryptFile.fileNameLen);
                 printf("  Filename:         %s\n", cryptFile.fileName);
                 printf("  isFolder:         %s\n", cryptFile.isFolder ? "True" : "False");
-                printf("  Content length:   %ld\n", cryptFile.sizeFileData);
+                printf("  Enc. data size:   %ld\n", cryptFile.sizeFileData);
                 printf("  File key (hex):   %s\n", Utils::convertToHex(cryptFile.fileKey, 32).c_str());
                 printf("  File IV (hex):    %s\n", Utils::convertToHex(cryptFile.fileIV, 16).c_str());
                 #endif
@@ -130,10 +134,136 @@ bool Crypter::createCryptFile(string target)
         // with headers like magic bytes, file size, 
 }
 
-bool Crypter::checkCryptFile(string fileName)
+bool Crypter::decryptCryptFile(string target)
+{
+        return false;
+}
+
+bool Crypter::readCryptHeader(string target)
+{
+        if (!this->checkCryptFile(target.c_str()))
+                return false;
+
+        FILE* inputFile = fopen(target.c_str(), "rb");
+        if (inputFile == NULL) {
+
+                printf("[-] Failed to open the crypt file! Error code: %d\n\n", errno);
+                return false;
+        }
+
+        CryptHeader cryptHeader;
+        int fileRead = fread(&cryptHeader, 1, sizeof(CryptHeader), inputFile);
+        if (fileRead == -1) {
+
+                printf("[-] Failed to read the crypt file! Error code: %d\n\n", errno);
+                return false;
+        }
+        else if (fileRead == 0) {
+
+                printf("[-] Invalid crypt file, file is empty!\n\n");
+                return false;
+        }
+
+        fclose(inputFile);
+
+        // Print out the information.
+        printf("CryptHeader\n");
+        printf("  Magic:            %s\n", cryptHeader.magic);
+        printf("  Size priv key:    X\n");
+        printf("  Enc. priv key:    X\n");
+        printf("  IV priv key:      X\n");
+        printf("  Count file infos: %d\n\n", cryptHeader.countFileInfos);
+        return true;
+}
+
+bool Crypter::readCryptFiles(string target)
+{
+        if (!this->checkCryptFile(target.c_str()))
+                return false;
+
+        FILE* inputFile = fopen(target.c_str(), "rb");
+        if (inputFile == NULL) {
+
+                printf("[-] Failed to open the crypt file! Error code: %d\n\n", errno);
+                return false;
+        }
+
+        CryptHeader cryptHeader;
+        int fileRead = fread(&cryptHeader, 1, sizeof(CryptHeader), inputFile);
+        if (fileRead == -1) {
+
+                printf("[-] Failed to read the crypt file! Error code: %d\n\n", errno);
+                return false;
+        }
+        else if (fileRead == 0) {
+
+                printf("[-] Invalid crypt file, file is empty!\n\n");
+                return false;
+        }
+
+        // Looping trough CryptFiles.
+        for (int i = 0; i < cryptHeader.countFileInfos; i++) {
+
+                CryptFile cryptFile;
+                fileRead = fread(&cryptFile, 1, sizeof(CryptFile), inputFile);
+                if (fileRead == -1) {
+
+                        printf("[-] Failed to read the buffer for CryptFile[%d]! Error code: %d\n\n", i, errno);
+                        return false;
+                }
+                else if (fileRead == 0) {
+                        
+                        printf("[-] Structure empty! Invalid count of file infos!\n\n");
+                        return false;
+                }
+
+                // Print out the file info.
+                printf("CryptFile [%d]\n", i);
+                printf("  Filename length:  %d\n", cryptFile.fileNameLen);
+                printf("  Filename:         %s\n", cryptFile.fileName);
+                printf("  isFolder:         %s\n", cryptFile.isFolder ? "True" : "False");
+                printf("  Enc. data size:   %ld\n", cryptFile.sizeFileData);
+                printf("  File key (hex):   %s\n", Utils::convertToHex(cryptFile.fileKey, 32).c_str());
+                printf("  File IV (hex):    %s\n\n", Utils::convertToHex(cryptFile.fileIV, 16).c_str());
+        }
+
+        fclose(inputFile);
+        return true;
+}
+
+bool Crypter::checkCryptFile(string target)
 {
         // Check magic bytes.
-        return false;
+        FILE* inputFile = fopen(target.c_str(), "rb");
+        if (inputFile == NULL) {
+
+                printf("[-] Failed to open the crypt file! Error code: %d\n\n", errno);
+                return false;
+        }
+
+        CryptHeader cryptHeader;
+        int fileRead = fread(&cryptHeader, 1, sizeof(CryptHeader), inputFile);
+        if (fileRead == -1) {
+
+                printf("[-] Failed to read the crypt file! Error code: %d\n\n", errno);
+                return false;
+        }
+        else if (fileRead == 0) {
+
+                printf("[-] Invalid crypt file, file is empty!\n\n");
+                return false;
+        }
+
+        // Check the magic bytes.
+        if (!(cryptHeader.magic[0] == '.' && cryptHeader.magic[1] == 'c' &&
+                cryptHeader.magic[2] == 'r' && cryptHeader.magic[3] == 'y' &&
+                cryptHeader.magic[4] == 'p' && cryptHeader.magic[5] == 't')) {
+                
+                printf("[-] Invalid file format! Crypt magic bytes not correct!\n\n");
+                return false;
+        }
+
+        return true;
 }
 
 /////////// private member functions ///////////////
@@ -151,17 +281,7 @@ Crypter::CryptHeader Crypter::generateCryptHeader()
         cryptHeader.magic[4] = 'p';
         cryptHeader.magic[5] = 't';
 
-        // If content is a folder.
-        //cryptFile.isFolder = this->isFolder;
-
         return cryptHeader;
-        /*
-        unsigned int sizePrivateKey;
-        char* encryptedPrivateKey;
-        unsigned int sizeIv;
-        char* iv;
-        unsigned long sizeFileData;
-        char* fileData;*/
 }
 
 Crypter::CryptFile Crypter::encryptFile(string fileName)

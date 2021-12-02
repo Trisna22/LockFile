@@ -19,7 +19,7 @@ void help() {
 
 int main(int argc, char*argv[]) {
 
-        printf("LockFile 1.0 (c) ramb0 2021\n");
+        printf("LockFile 1.0 (c) ramb0 2021\n\n");
 
         if (argc < 2) {
                 usage();
@@ -34,13 +34,28 @@ int main(int argc, char*argv[]) {
                         return 0;
                 }
                 else {
-                        Crypter crypter;
-                        crypter.createCryptFile("./testFiles/test.txt");
-                        return 0;
-
-                        printf("Invalid options or arguments given!\n");
-                        usage();
-                        return 0;
+                        string arg = argv[i];
+                        if (arg == "-e") {
+                                Crypter crypter;
+                                crypter.createCryptFile("./testFiles/test.txt");
+                                return 0;
+                        }
+                        else if (arg == "-i") {
+                                Crypter crypter;
+                                crypter.readCryptHeader("./testFiles/test.txt.crypt");
+                                crypter.readCryptFiles("./testFiles/test.txt.crypt");
+                                return 0;
+                        }
+                        else if (arg == "-d") {
+                                Crypter crypter;
+                                crypter.decryptCryptFile("./testFiles/test.txt.crypt");
+                                return 0;
+                        }
+                        else {
+                                printf("Invalid options or arguments given!\n");
+                                usage();
+                                return 0;
+                        }
                 }
         }
         

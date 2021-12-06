@@ -37,19 +37,27 @@ int main(int argc, char*argv[]) {
                         string arg = argv[i];
                         if (arg == "-e") {
                                 Crypter crypter;
-                                crypter.createCryptFile("./testFiles/test.txt");
+                                crypter.createCryptFile("./testFiles/postmalone.jpg");
                                 return 0;
                         }
                         else if (arg == "-i") {
                                 Crypter crypter;
-                                crypter.readCryptHeader("./testFiles/test.txt.crypt");
-                                crypter.readCryptFiles("./testFiles/test.txt.crypt");
+                                crypter.readCryptHeader("./testFiles/postmalone.jpg.crypt");
+                                crypter.readCryptFiles("./testFiles/postmalone.jpg.crypt");
                                 return 0;
                         }
                         else if (arg == "-d") {
                                 Crypter crypter;
-                                crypter.decryptCryptFile("./testFiles/test.txt.crypt");
+                                crypter.openCryptFile("./testFiles/postmalone.jpg.crypt");
                                 return 0;
+                        }
+                        else if (arg == "-c") {
+                                Crypter crypter;
+                                if (crypter.checkCryptFile("./testFiles/postmalone.jpg.crypt")) {
+
+                                        printf("[!] Valid .crypt file!\n");
+                                }
+                                return 0;   
                         }
                         else {
                                 printf("Invalid options or arguments given!\n");

@@ -4,6 +4,8 @@
 #ifndef AESCrypter_H
 #define AESCrypter_H
 
+#define BLOCK_SIZE 4096
+
 class AESCrypter {
 public:
         AESCrypter();
@@ -68,10 +70,6 @@ string AESCrypter::getIv() {
 
 bool AESCrypter::setKey(string key, int lenKey, string strIV = "", bool decrypt = false)
 {
-        // Generate random IV.
-        unsigned char iv_enc[AES_BLOCK_SIZE];
-        RAND_bytes(iv_enc, AES_BLOCK_SIZE);
-
         // Find out how long the key size can be.                                                               
         if (lenKey > 32) {
                 printf("# Provided password too long, max of 32 characters!\n");
@@ -89,6 +87,9 @@ bool AESCrypter::setKey(string key, int lenKey, string strIV = "", bool decrypt 
 
         if (decrypt == false) {
 
+                // Generate random IV.
+                unsigned char iv_enc[AES_BLOCK_SIZE];
+                RAND_bytes(iv_enc, AES_BLOCK_SIZE);
                 this->IV = Utils::convertToHex((char*)iv_enc, 16);
 
                 if (EVP_EncryptInit_ex(this->cipherContext, encryptionMethod, NULL, (unsigned char*)key.c_str(), iv_enc) == 0) {
@@ -164,15 +165,13 @@ unsigned char* AESCrypter::decryptData(char* data, int sizeData, int *sizeOutput
         
 bool AESCrypter::encryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeOutput)
 {
-        long blockSize = 1024;
-
-        unsigned char* inputBuffer = (unsigned char*)malloc(blockSize);
-        unsigned char* outputBuffer = (unsigned char*)malloc(blockSize + EVP_MAX_BLOCK_LENGTH);
+        unsigned char* inputBuffer = (unsigned char*)malloc(BLOCK_SIZE);
+        unsigned char* outputBuffer = (unsigned char*)malloc(BLOCK_SIZE + EVP_MAX_BLOCK_LENGTH);
         int outputBufferSize;
         *sizeOutput = 0;
 
         for (;;) {
-                int readSize = fread(inputBuffer, 1, blockSize, inputFile);
+                int readSize = fread(inputBuffer, 1, BLOCK_SIZE, inputFile);
                 if (readSize <= 0 && errno != 0) {
 
                         printf("# Failed to read buffer from input file! Error code: %d\n\n", errno);
@@ -221,15 +220,13 @@ bool AESCrypter::encryptFile(FILE* inputFile, FILE* outputFile, unsigned long* s
 }
 bool AESCrypter::decryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeOutput)
 {
-        long blockSize = 1024;
-
-        unsigned char* inputBuffer = (unsigned char*)malloc(blockSize);
-        unsigned char* outputBuffer = (unsigned char*)malloc(blockSize + EVP_MAX_BLOCK_LENGTH);
+        unsigned char* inputBuffer = (unsigned char*)malloc(BLOCK_SIZE);
+        unsigned char* outputBuffer = (unsigned char*)malloc(BLOCK_SIZE + EVP_MAX_BLOCK_LENGTH);
         int outputBufferSize;
         *sizeOutput = 0;
 
         for (;;) {
-                int readSize = fread(inputBuffer, 1, blockSize, inputFile);
+                int readSize = fread(inputBuffer, 1, BLOCK_SIZE, inputFile);
                 if (readSize <= 0 && errno != 0) {
 
                         printf("# Failed to read buffer from input file! Error code: %d\n\n", errno);
@@ -264,6 +261,9 @@ bool AESCrypter::decryptFile(FILE* inputFile, FILE* outputFile, unsigned long* s
                 ERR_print_errors_fp(stderr);
                 return false;
         }*/
+
+        // Somehow we miss a few bytes at the end of binary files!
+        // Maybe this is bc of the block sizes.
 
         *sizeOutput += tempLen; // Last update of byte count pointer.
 

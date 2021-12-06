@@ -10,6 +10,7 @@ public:
         static char* convertToBinary(string data); 
         static void fillCharArray(string data, char* arr);
         static long getFileSize(string fileName);
+        static string validateSingleFile(string path);
 };
 
 #endif // !Utils_H
@@ -58,4 +59,17 @@ long Utils::getFileSize(string fileName)
         struct stat st;
         stat(fileName.c_str(), &st);
         return st.st_size;
+}
+
+string Utils::validateSingleFile(string path)
+{
+        // Remove the last slash.
+        if (path[path.length()-1] == '/' || path[path.length() -1] == '\\')
+                path = path.substr(0, path.length() -1);
+
+        // Get only the filename.
+        if (path.find("/") != string::npos)
+                return path.substr(path.find_last_of("/")+1);
+
+        return path;
 }

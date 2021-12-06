@@ -28,3 +28,7 @@ decrypt:
 info: 
 	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
 	./build/$(OUTPUT_FILE) -i ./testFiles/testFile.txt.crypt
+
+check:
+	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
+	./build/$(OUTPUT_FILE) -c ./testFiles/testFile.txt.crypt

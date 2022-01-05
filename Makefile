@@ -32,3 +32,7 @@ info:
 check:
 	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
 	./build/$(OUTPUT_FILE) -c ./testFiles/testFile.txt.crypt
+
+debug:
+	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/main2.cpp --no-warnings -lcrypto
+	./build/$(OUTPUT_FILE)

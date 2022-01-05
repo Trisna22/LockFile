@@ -5,24 +5,33 @@
 #define AESCrypter_H
 
 #define BLOCK_SIZE 4096
+#define BUFSIZE 1024
+
+/* 32 byte key (256 bit key) */
+#define AES_256_KEY_SIZE 32
+/* 16 byte block size (128 bits) */
+#define AES_BLOCK_SIZE 16
 
 class AESCrypter {
 public:
         AESCrypter();
         ~AESCrypter();
-        void createRandomKey(char*);
-        void setIv(char*);
-        string getIv();
-        bool setKey(string key, int keyLen, string iv, bool decrypt);
+        void createRandomKey( char*);
+        void setIv(unsigned char*);
+        void setIv2(unsigned char*);
+        unsigned char* getIv();
+        bool setKey(string key, int keyLen, unsigned char* iv, bool decrypt);
 
         unsigned char* encryptData(char* data, int sizeData, int *sizeOutput);
         unsigned char* decryptData(char* data, int sizeData, int* sizeOutput);
         bool encryptFile(FILE* inputFile, FILE* outFile, unsigned long* sizeOutput);
         bool decryptFile(FILE* outputFile, FILE* outFile, unsigned long* sizeOutput);
+        bool encryptDecryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeOutput);
+
 private:
         EVP_CIPHER_CTX* cipherContext;
         const EVP_CIPHER* encryptionMethod = EVP_aes_256_cbc();
-        string IV;
+        unsigned char IV[16];
 
         static void string_to_uchar(string str, unsigned char* charArr);
 };
@@ -40,7 +49,7 @@ AESCrypter::AESCrypter()
         }
 
         // No padding.
-        EVP_CIPHER_CTX_set_padding(this->cipherContext, 0);
+        EVP_CIPHER_CTX_set_padding(this->cipherContext, BUFSIZE);
 }
 
 AESCrypter::~AESCrypter()
@@ -57,56 +66,90 @@ void AESCrypter::createRandomKey(char* key)
                 key[i] = randomKey[i];
 }
 
-void AESCrypter::setIv(char* iv)
+void AESCrypter::setIv(unsigned char* iv)
 {
-        char* decodedIV = Utils::convertToBinary(this->IV);
         for (int i = 0; i < 16; i++)
-                iv[i] = decodedIV[i];
+                iv[i] = this->IV[i];
 }
 
-string AESCrypter::getIv() {
+void AESCrypter::setIv2(unsigned char* iv)
+{
+        for (int i = 0; i < 16; i++)
+                this->IV[i] = iv[i];
+
+}
+
+unsigned char* AESCrypter::getIv() {
         return this->IV;
 }
 
-bool AESCrypter::setKey(string key, int lenKey, string strIV = "", bool decrypt = false)
+bool AESCrypter::setKey(string key, int lenKey, unsigned char* passedIV = NULL, bool decrypt = false)
 {
         // Find out how long the key size can be.                                                               
-        if (lenKey > 32) {
+        if (lenKey > AES_256_KEY_SIZE) {
                 printf("# Provided password too long, max of 32 characters!\n");
                 return false;
         }
 
         string oldKey = key;
         key.clear();
-        if (lenKey < 32) {
+        if (lenKey < AES_256_KEY_SIZE) {
                 for (int i = 0; i < lenKey -1; i++) // Minus 1 for the null byte.
                         key.push_back(oldKey[i]);
-                for (int i = lenKey; i < 32; i++)
+                for (int i = lenKey; i < AES_256_KEY_SIZE; i++)
                         key.push_back('X');
         }
 
-        if (decrypt == false) {
+        if (!decrypt) {
 
                 // Generate random IV.
                 unsigned char iv_enc[AES_BLOCK_SIZE];
                 RAND_bytes(iv_enc, AES_BLOCK_SIZE);
-                this->IV = Utils::convertToHex((char*)iv_enc, 16);
+                memcpy(this->IV, iv_enc, 16);
 
-                if (EVP_EncryptInit_ex(this->cipherContext, encryptionMethod, NULL, (unsigned char*)key.c_str(), iv_enc) == 0) {
+                /* Don't set key or IV right away; we want to check lengths */
+                if(!EVP_CipherInit_ex(this->cipherContext, encryptionMethod, NULL, NULL, NULL, 1)){
+                        fprintf(stderr, "ERROR: EVP_CipherInit_ex failed. OpenSSL error: %s\n", 
+                        ERR_error_string(ERR_get_error(), NULL));
+                        return false;
+                }
+
+                OPENSSL_assert(EVP_CIPHER_CTX_key_length(this->cipherContext) == AES_256_KEY_SIZE);
+                OPENSSL_assert(EVP_CIPHER_CTX_iv_length(this->cipherContext) == AES_BLOCK_SIZE);
+
+                /* Now we can set key and IV */
+                // this->IV
+                if(!EVP_CipherInit_ex(this->cipherContext, NULL, NULL, (unsigned char*)"XXXXXXXXXXXXXXXX", (unsigned char*)key.c_str(), 1)){
+                        fprintf(stderr, "ERROR: EVP_CipherInit_ex failed. OpenSSL error: %s\n", 
+                        ERR_error_string(ERR_get_error(), NULL));
+                        return false;
+                }
+
+                /*if (EVP_EncryptInit_ex(this->cipherContext, encryptionMethod, NULL, (unsigned char*)key.c_str(), NULL) == 0) {
 
                         printf("# Failed initialize encryption AES in our context!\n\n");
                         ERR_print_errors_fp(stderr);
                         return false;
-                }
-
+                }*/
         }
         else {
-                this->IV = strIV; // IV from parameter.
+                //this->IV = passedIV; // IV from parameter.
 
-                char* decodedIV = Utils::convertToBinary(strIV);
-                if (EVP_DecryptInit_ex(this->cipherContext, encryptionMethod, NULL, (unsigned char*)key.c_str(), (unsigned char*)decodedIV) == 0) {
-                        printf("# Failed initialize decryption AES in our context!\n\n");
-                        ERR_print_errors_fp(stderr);
+                /* Don't set key or IV right away; we want to check lengths */
+                if(!EVP_CipherInit_ex(this->cipherContext, encryptionMethod, NULL, NULL, NULL, 0)){
+                        fprintf(stderr, "ERROR: EVP_CipherInit_ex failed. OpenSSL error: %s\n", 
+                        ERR_error_string(ERR_get_error(), NULL));
+                        return false;
+                }
+
+                OPENSSL_assert(EVP_CIPHER_CTX_key_length(this->cipherContext) == AES_256_KEY_SIZE);
+                OPENSSL_assert(EVP_CIPHER_CTX_iv_length(this->cipherContext) == AES_BLOCK_SIZE);
+
+                /* Now we can set key and IV */
+                // passedIV
+                if(!EVP_CipherInit_ex(this->cipherContext, NULL, NULL, (unsigned char*)"XXXXXXXXXXXXXXXX", (unsigned char*)key.c_str(), 0)){
+                        fprintf(stderr, "ERROR: EVP_CipherInit_ex failed. OpenSSL error: %s\n", 
+                        ERR_error_string(ERR_get_error(), NULL));
                         return false;
                 }
         }
@@ -215,7 +258,7 @@ bool AESCrypter::encryptFile(FILE* inputFile, FILE* outputFile, unsigned long* s
         }
 
         fclose(inputFile);
-        fclose(outputFile);
+        fclose(outputFile); 
         return true;
 }
 bool AESCrypter::decryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeOutput)
@@ -252,9 +295,9 @@ bool AESCrypter::decryptFile(FILE* inputFile, FILE* outputFile, unsigned long* s
         }
 
         // Finalizing encrypted data.
-        int tempLen;
-        EVP_DecryptFinal_ex(this->cipherContext, outputBuffer + outputBufferSize, &tempLen);
         // EVP_DecryptFinal_ex() always returns zero, even if it decrypted correctly.
+        int tempLen;
+        EVP_DecryptFinal_ex(this->cipherContext, outputBuffer + outputBufferSize, &tempLen); 
         /*{
 
                 printf("# Failed to finalize the decrypted data!\n\n");
@@ -283,6 +326,63 @@ bool AESCrypter::decryptFile(FILE* inputFile, FILE* outputFile, unsigned long* s
         free(outputBuffer);
         fclose(inputFile);
         fclose(outputFile);
+        return true;
+}
+
+bool AESCrypter::encryptDecryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeOutput)
+{
+        /* Allow enough space in output buffer for additional block */
+        int cipher_block_size = EVP_CIPHER_block_size(this->encryptionMethod);
+        unsigned char in_buf[BUFSIZE], out_buf[BUFSIZE + cipher_block_size];
+
+        int num_bytes_read, out_len;
+        *sizeOutput = 0;
+
+        for (;;) {
+               // Read in data in blocks until EOF. Update the ciphering with each read.
+                num_bytes_read = fread(in_buf, sizeof(unsigned char), BUFSIZE, inputFile);
+                if (ferror(inputFile)){
+                        fprintf(stderr, "ERROR: fread error: %s\n", strerror(errno));
+                        return false;
+                } 
+
+                if(!EVP_CipherUpdate(this->cipherContext, out_buf, &out_len, in_buf, num_bytes_read)){
+                        fprintf(stderr, "ERROR: EVP_CipherUpdate failed. OpenSSL error: %s\n", 
+                                ERR_error_string(ERR_get_error(), NULL));
+                        return false;
+                }
+
+                fwrite(out_buf, sizeof(unsigned char), out_len, outputFile);
+                if (ferror(outputFile)) {
+                        fprintf(stderr, "ERROR: fwrite error: %s\n", strerror(errno));
+                        return false;
+                }
+                
+                *sizeOutput += out_len;
+                if (num_bytes_read < BUFSIZE) {
+                        /* Reached End of file */
+                        break;
+                }
+        }
+
+        /* Now cipher the final block and write it out to file */
+        if(!EVP_CipherFinal_ex(this->cipherContext, out_buf, &out_len)) {
+                fprintf(stderr, "ERROR: EVP_CipherFinal_ex failed. OpenSSL error: %s\n", 
+                        ERR_error_string(ERR_get_error(), NULL));
+                return false;
+        }
+
+        fwrite(out_buf, sizeof(unsigned char), out_len, outputFile);
+
+        if (ferror(outputFile)) {
+                fprintf(stderr, "ERROR: fwrite error: %s\n", strerror(errno));
+                return false;
+        }      
+        *sizeOutput += out_len;
+
+        fclose(inputFile);
+        fclose(outputFile);
+
         return true;
 }
 

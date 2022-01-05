@@ -26,7 +26,7 @@ private:
                 bool isFolder;                  // Is folder?
                 unsigned long sizeFileData;     // File data size.
                 char fileKey[32];               // The key of the AES encryption.
-                char fileIV[16];                // The IV of the AES encryption.
+                unsigned char fileIV[16];       // The IV of the AES encryption.
                 char fileHash[16];              // The hash of the (unencrypted) content.
         };
 
@@ -147,7 +147,7 @@ bool Crypter::createCryptFile(string target)
                 printf("  isFolder:         %s\n", cryptFile.isFolder ? "True" : "False");
                 printf("  Enc. data size:   %ld\n", cryptFile.sizeFileData);
                 printf("  File key (hex):   %s\n", Utils::convertToHex(cryptFile.fileKey, 32).c_str());
-                printf("  File IV (hex):    %s\n", Utils::convertToHex(cryptFile.fileIV, 16).c_str());
+                printf("  File IV (hex):    %s\n", Utils::convertToHex((char*)cryptFile.fileIV, 16).c_str());
                 printf("  File hash (MD5):  %s\n\n", Utils::convertToHex(cryptFile.fileHash, 16).c_str());
                 #endif
         }
@@ -210,7 +210,7 @@ bool Crypter::openCryptFile(string target)
                         return false;
                 }
 
-                // Put the results in a map.
+                // Put the results in a list.
                 fileInfos[i] = cryptFile;
         }
 
@@ -332,7 +332,7 @@ bool Crypter::readCryptFiles(string target)
                 printf("  isFolder:         %s\n", cryptFile.isFolder ? "True" : "False");
                 printf("  Enc. data size:   %ld\n", cryptFile.sizeFileData);
                 printf("  File key (hex):   %s\n", Utils::convertToHex(cryptFile.fileKey, 32).c_str());
-                printf("  File IV (hex):    %s\n", Utils::convertToHex(cryptFile.fileIV, 16).c_str());
+                printf("  File IV (hex):    %s\n", Utils::convertToHex((char*)cryptFile.fileIV, 16).c_str());
                 printf("  File hash (MD5):  %s\n\n", Utils::convertToHex(cryptFile.fileHash, 16).c_str());
         }
 
@@ -407,7 +407,6 @@ Crypter::CryptHeader Crypter::generateCryptHeader()
  */
 bool Crypter::md5SumFile(string fileName, char* fileHash)
 {
-        printf("Md5summing: %s\n", fileName.c_str());
 	EVP_MD_CTX *hashContext = EVP_MD_CTX_create();
 
 	int hashLen = EVP_MD_size(HASH_TYPE);
@@ -503,10 +502,9 @@ Crypter::CryptFile Crypter::encryptFile(string fileName)
         // Set the generated IV.
         this->aesCrypter.setIv(cryptFile.fileIV);
 
-
         // Let AES do the work with file.
         unsigned long outputSize;
-        if (!this->aesCrypter.encryptFile(inputFile, outputFile, &outputSize)) {
+        if (!this->aesCrypter.encryptDecryptFile(inputFile, outputFile, &outputSize)) {
 
                 printf("[-] Failed to encrypt the file with AES!\n\n");
                 return cryptFile;
@@ -534,6 +532,8 @@ bool Crypter::decryptFile(CryptFile fileInfo, FILE* inputFile)
         unsigned long fileSize = fileInfo.sizeFileData;
         string fileName = fileInfo.fileName;
 
+        printf("[*] Decrypting file %s\n", fileName.c_str());
+
         FILE* outputFile = fopen(TEMP_FILE, "wb");
         if (outputFile == NULL) {
 
@@ -551,15 +551,18 @@ bool Crypter::decryptFile(CryptFile fileInfo, FILE* inputFile)
         FILE* encryptedFile = fopen(TEMP_FILE, "rb");
         FILE* outputFile2 = fopen(fileName.c_str(), "wb");
 
+        printf("[*] Setting IV and decryption key\n");
+
+        this->aesCrypter.setIv2(fileInfo.fileIV);
+
         // Set the key and IV and start decrypting.
         if (!this->aesCrypter.setKey(fileInfo.fileKey, 32, // The key of the file.
-                Utils::convertToHex(fileInfo.fileIV, 16), // The IV of the file.
+                fileInfo.fileIV, // The IV of the file.
                 true
-        ));
-
+        )); 
 
         unsigned long outputSize;
-        if (!this->aesCrypter.decryptFile(encryptedFile, outputFile2, &outputSize)) {
+        if (!this->aesCrypter.encryptDecryptFile(encryptedFile, outputFile2, &outputSize)) {
 
                 printf("[-] Failed to decrypt the file with the key and IV!\n\n");
                 return false;
@@ -579,6 +582,8 @@ bool Crypter::decryptFile(CryptFile fileInfo, FILE* inputFile)
                 printf("[-] Failed to retrieve the hash of the file to compare!\n\n");
                 return false;
         }
+
+        printf("[+] Decryption and hash comparising completed!\n");
 
         if (Utils::convertToHex(hashCheck, 16) != Utils::convertToHex(fileInfo.fileHash, 16)) {
                 

@@ -7,7 +7,7 @@ class Utils
 {
 public:
         static string convertToHex(char* arr, int size);
-        static char* convertToBinary(string data); 
+        static unsigned char* convertToBinary(string data); 
         static void fillCharArray(string data, char* arr);
         static long getFileSize(string fileName);
         static string validateSingleFile(string path);
@@ -28,10 +28,10 @@ string Utils::convertToHex(char* arr, int size)
         ss.clear();
         return result;
 }
-char* Utils::convertToBinary(string data)
+unsigned char* Utils::convertToBinary(string data)
 {
         int len = data.length();
-        char* newArr = new char[data.length() / 2 +1]; // Divided by 2 bc it is hex to bytes.
+        unsigned char* newArr = new unsigned char[data.length() / 2 +1]; // Divided by 2 bc it is hex to bytes.
         int counter = 0;
         for (int i = 0; i < len; i += 2)
         {

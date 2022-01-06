@@ -37,23 +37,27 @@ int main(int argc, char*argv[]) {
                         string arg = argv[i];
                         if (arg == "-e") {
                                 Crypter crypter;
-                                crypter.createCryptFile("./testFiles/test.txt");
+                                //crypter.createCryptFile("./testFiles/test.txt");
+                                crypter.createCryptFile("./testFiles/test");
                                 return 0;
                         }
                         else if (arg == "-i") {
                                 Crypter crypter;
-                                crypter.readCryptHeader("./testFiles/test.txt.crypt");
-                                crypter.readCryptFiles("./testFiles/test.txt.crypt");
+                                //crypter.readCryptHeader("./testFiles/test.txt.crypt");
+                                //crypter.readCryptFiles("./testFiles/test.txt.crypt");
+                                crypter.readCryptHeader("./testFiles/test.crypt");
+                                crypter.readCryptFiles("./testFiles/test.crypt");
                                 return 0;
                         }
                         else if (arg == "-d") {
                                 Crypter crypter;
-                                crypter.openCryptFile("./testFiles/test.txt.crypt");
+                                //crypter.openCryptFile("./testFiles/test.txt.crypt");
+                                crypter.openCryptFile("./testFiles/test.crypt");
                                 return 0;
                         }
                         else if (arg == "-c") {
                                 Crypter crypter;
-                                if (crypter.checkCryptFile("./testFiles/test.txt.crypt")) {
+                                if (crypter.checkCryptFile("./testFiles/test.crypt")) {
 
                                         printf("[!] Valid .crypt file!\n");
                                 }

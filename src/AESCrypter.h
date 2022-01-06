@@ -24,8 +24,6 @@ public:
 
         unsigned char* encryptData(char* data, int sizeData, int *sizeOutput);
         unsigned char* decryptData(char* data, int sizeData, int* sizeOutput);
-        bool encryptFile(FILE* inputFile, FILE* outFile, unsigned long* sizeOutput);
-        bool decryptFile(FILE* outputFile, FILE* outFile, unsigned long* sizeOutput);
         bool encryptDecryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeOutput);
 
 private:
@@ -124,13 +122,6 @@ bool AESCrypter::setKey(string key, int lenKey, unsigned char* passedIV = NULL, 
                         ERR_error_string(ERR_get_error(), NULL));
                         return false;
                 }
-
-                /*if (EVP_EncryptInit_ex(this->cipherContext, encryptionMethod, NULL, (unsigned char*)key.c_str(), NULL) == 0) {
-
-                        printf("# Failed initialize encryption AES in our context!\n\n");
-                        ERR_print_errors_fp(stderr);
-                        return false;
-                }*/
         }
         else {
                 //this->IV = passedIV; // IV from parameter.
@@ -205,7 +196,73 @@ unsigned char* AESCrypter::decryptData(char* data, int sizeData, int *sizeOutput
         *sizeOutput += plaintextLen;
         return output;
 }
-        
+
+bool AESCrypter::encryptDecryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeOutput)
+{
+        // Allow enough space in output buffer for additional block.
+        int cipher_block_size = EVP_CIPHER_block_size(this->encryptionMethod);
+        unsigned char in_buf[BUFSIZE], out_buf[BUFSIZE + cipher_block_size];
+
+        int num_bytes_read, out_len;
+        *sizeOutput = 0;
+
+        for (;;) {
+               // Read in data in blocks until EOF. Update the ciphering with each read.
+                num_bytes_read = fread(in_buf, sizeof(unsigned char), BUFSIZE, inputFile);
+                if (ferror(inputFile)){
+                        fprintf(stderr, "# Failed to read bytes from file! Error: %s\n", strerror(errno));
+                        return false;
+                } 
+
+                if(!EVP_CipherUpdate(this->cipherContext, out_buf, &out_len, in_buf, num_bytes_read)){
+                        fprintf(stderr, "# Failed to update cipher block. OpenSSL error: %s\n", 
+                                ERR_error_string(ERR_get_error(), NULL));
+                        return false;
+                }
+
+                fwrite(out_buf, sizeof(unsigned char), out_len, outputFile);
+                if (ferror(outputFile)) {
+                        fprintf(stderr, "# Failed to write data to file! Error: %s\n", strerror(errno));
+                        return false;
+                }
+                
+                *sizeOutput += out_len;
+                if (num_bytes_read < BUFSIZE) {
+                        // Reached end of file.
+                        break;
+                }
+        }
+
+        // Now cipher the final block and write it out to file.
+        if(!EVP_CipherFinal_ex(this->cipherContext, out_buf, &out_len)) {
+                fprintf(stderr, "# Faield to finalize cipher! OpenSSL error: %s\n", 
+                        ERR_error_string(ERR_get_error(), NULL));
+                return false;
+        }
+
+        fwrite(out_buf, sizeof(unsigned char), out_len, outputFile);
+
+        if (ferror(outputFile)) {
+                fprintf(stderr, "# Failed to write the last bits to file! Error: %s\n", strerror(errno));
+                return false;
+        }      
+        *sizeOutput += out_len;
+
+        fclose(inputFile);
+        fclose(outputFile);
+
+        return true;
+}
+
+void AESCrypter::string_to_uchar(string str, unsigned char* charArr)
+{
+        strncpy((char*)charArr, str.c_str(), str.length());
+}
+
+
+
+// Backup encryptFile()/decryptFile() functions.
+/*      
 bool AESCrypter::encryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeOutput)
 {
         unsigned char* inputBuffer = (unsigned char*)malloc(BLOCK_SIZE);
@@ -303,7 +360,7 @@ bool AESCrypter::decryptFile(FILE* inputFile, FILE* outputFile, unsigned long* s
                 printf("# Failed to finalize the decrypted data!\n\n");
                 ERR_print_errors_fp(stderr);
                 return false;
-        }*/
+        }
 
         // Somehow we miss a few bytes at the end of binary files!
         // Maybe this is bc of the block sizes.
@@ -328,65 +385,4 @@ bool AESCrypter::decryptFile(FILE* inputFile, FILE* outputFile, unsigned long* s
         fclose(outputFile);
         return true;
 }
-
-bool AESCrypter::encryptDecryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeOutput)
-{
-        /* Allow enough space in output buffer for additional block */
-        int cipher_block_size = EVP_CIPHER_block_size(this->encryptionMethod);
-        unsigned char in_buf[BUFSIZE], out_buf[BUFSIZE + cipher_block_size];
-
-        int num_bytes_read, out_len;
-        *sizeOutput = 0;
-
-        for (;;) {
-               // Read in data in blocks until EOF. Update the ciphering with each read.
-                num_bytes_read = fread(in_buf, sizeof(unsigned char), BUFSIZE, inputFile);
-                if (ferror(inputFile)){
-                        fprintf(stderr, "ERROR: fread error: %s\n", strerror(errno));
-                        return false;
-                } 
-
-                if(!EVP_CipherUpdate(this->cipherContext, out_buf, &out_len, in_buf, num_bytes_read)){
-                        fprintf(stderr, "ERROR: EVP_CipherUpdate failed. OpenSSL error: %s\n", 
-                                ERR_error_string(ERR_get_error(), NULL));
-                        return false;
-                }
-
-                fwrite(out_buf, sizeof(unsigned char), out_len, outputFile);
-                if (ferror(outputFile)) {
-                        fprintf(stderr, "ERROR: fwrite error: %s\n", strerror(errno));
-                        return false;
-                }
-                
-                *sizeOutput += out_len;
-                if (num_bytes_read < BUFSIZE) {
-                        /* Reached End of file */
-                        break;
-                }
-        }
-
-        /* Now cipher the final block and write it out to file */
-        if(!EVP_CipherFinal_ex(this->cipherContext, out_buf, &out_len)) {
-                fprintf(stderr, "ERROR: EVP_CipherFinal_ex failed. OpenSSL error: %s\n", 
-                        ERR_error_string(ERR_get_error(), NULL));
-                return false;
-        }
-
-        fwrite(out_buf, sizeof(unsigned char), out_len, outputFile);
-
-        if (ferror(outputFile)) {
-                fprintf(stderr, "ERROR: fwrite error: %s\n", strerror(errno));
-                return false;
-        }      
-        *sizeOutput += out_len;
-
-        fclose(inputFile);
-        fclose(outputFile);
-
-        return true;
-}
-
-void AESCrypter::string_to_uchar(string str, unsigned char* charArr)
-{
-        strncpy((char*)charArr, str.c_str(), str.length());
-}
+*/

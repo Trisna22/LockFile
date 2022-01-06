@@ -3,8 +3,9 @@
 #include <sstream>
 #include <iomanip>
 #include <sys/stat.h>
-#include <map>
 #include <unistd.h>
+#include <dirent.h>
+#include <vector>
 
 #include <openssl/aes.h>
 #include <openssl/err.h>

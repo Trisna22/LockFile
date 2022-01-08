@@ -23,17 +23,17 @@ public:
         bool readCryptFiles(string target);
 	bool checkCryptFile(string fileName);
 private:
-        struct CryptFile {
+        struct __attribute__ ((packed)) CryptFile {
                 int fileNameLen;                // The size of the filename.
                 char fileName[100];             // The filename.
                 bool isFolder;                  // Is folder?
                 unsigned long sizeFileData;     // File data size.
-                char fileKey[32];               // The key of the AES encryption.
+                unsigned char fileKey[32];      // The key of the AES encryption.
                 unsigned char fileIV[16];       // The IV of the AES encryption.
-                char fileHash[16];              // The hash of the (unencrypted) content.
+                unsigned char fileHash[16];              // The hash of the (unencrypted) content.
         };
 
-        struct CryptHeader {
+        struct __attribute__ ((packed)) CryptHeader {
                 unsigned char magic[6];         // Magic bytes.
                 unsigned int sizePrivateKey;    // Size of the private key (encrypted).
                 char* encryptedPrivateKey;      // The private key.
@@ -46,7 +46,7 @@ private:
         RSACrypter rsaCrypter;
         
         const EVP_MD *HASH_TYPE = EVP_md5();
-        bool md5SumFile(string fileName, char* fileHash);
+        bool md5SumFile(string fileName, unsigned char* fileHash);
 
         CryptHeader generateCryptHeader();
         CryptFile generateCryptFolder(string folderName);
@@ -62,7 +62,7 @@ private:
 
         // Folder encryption/decryption.
         bool encryptFolder(string fileName, FILE* outputFile);
-        bool decryptFolder(string fileName, FILE* inputFile);
+        bool decryptFolder(CryptFile fileInfo);
         vector<CryptFile> loopFolder(string fileName);
 
         bool copyFileDataToFilePointer(string fileName, FILE* outputFile);
@@ -70,7 +70,7 @@ private:
 };
 
 #endif // !Crypter_H
-
+ 
 Crypter::Crypter()
 {
 
@@ -178,6 +178,8 @@ bool Crypter::openCryptFile(string target)
                 
                 if (fileInfos[i].isFolder) {
                         // DO something.
+                        this->decryptFolder(fileInfos[i]);
+                        continue;
                 }
 
                 if (!this->decryptFile(fileInfos[i], inputFile)) {
@@ -291,8 +293,10 @@ bool Crypter::readCryptFiles(string target)
                 printf("  isFolder:         %s\n", cryptFile.isFolder ? "True" : "False");
                 printf("  Enc. data size:   %ld\n", cryptFile.sizeFileData);
                 printf("  File key (hex):   %s\n", Utils::convertToHex(cryptFile.fileKey, 32).c_str());
-                printf("  File IV (hex):    %s\n", Utils::convertToHex((char*)cryptFile.fileIV, 16).c_str());
+                printf("  File IV (hex):    %s\n", Utils::convertToHex(cryptFile.fileIV, 16).c_str());
                 printf("  File hash (MD5):  %s\n\n", Utils::convertToHex(cryptFile.fileHash, 16).c_str());
+
+                // Now skip over the file data.
         }
 
         fclose(inputFile);
@@ -426,7 +430,7 @@ bool Crypter::writeFileToCryptFile(string fileName, FILE* outputFile) {
         printf("  isFolder:         %s\n", cryptFile.isFolder ? "True" : "False");
         printf("  Enc. data size:   %ld\n", cryptFile.sizeFileData);
         printf("  File key (hex):   %s\n", Utils::convertToHex(cryptFile.fileKey, 32).c_str());
-        printf("  File IV (hex):    %s\n", Utils::convertToHex((char*)cryptFile.fileIV, 16).c_str());
+        printf("  File IV (hex):    %s\n", Utils::convertToHex(cryptFile.fileIV, 16).c_str());
         printf("  File hash (MD5):  %s\n\n", Utils::convertToHex(cryptFile.fileHash, 16).c_str());
         #endif
         return true;
@@ -438,7 +442,7 @@ bool Crypter::writeFileToCryptFile(string fileName, FILE* outputFile) {
  * @param fileName The file to get the hash from.
  * @param fileHash The pointer to store the hash in.
  */
-bool Crypter::md5SumFile(string fileName, char* fileHash)
+bool Crypter::md5SumFile(string fileName, unsigned char* fileHash)
 {
 	EVP_MD_CTX *hashContext = EVP_MD_CTX_create();
 
@@ -476,7 +480,7 @@ bool Crypter::md5SumFile(string fileName, char* fileHash)
         }
 
 	EVP_DigestFinal_ex(hashContext, hash, NULL);
-        strncpy(fileHash, (char*)hash, 16); // Copy bytes to pointer.
+        strncpy((char*)fileHash, (char*)hash, 16); // Copy bytes to pointer.
 
         // Cleanup.
         free(buffer);
@@ -527,7 +531,8 @@ Crypter::CryptFile Crypter::encryptFile(string fileName, bool fromFolder)
 
         // Generate key and set the key.
         this->aesCrypter.createRandomKey(cryptFile.fileKey);
-        if (!this->aesCrypter.setKey(cryptFile.fileKey, 32)) {
+        cryptFile.fileKey[AES_256_KEY_SIZE] = '\0'; // For string termination.
+        if (!this->aesCrypter.setKey(cryptFile.fileKey, AES_256_KEY_SIZE)) {
 
                 printf("[-] Failed to set the generated key as encryption key!\n\n");
                 return cryptFile;
@@ -593,12 +598,26 @@ bool Crypter::decryptFile(CryptFile fileInfo, FILE* inputFile)
         FILE* encryptedFile = fopen(TEMP_FILE, "rb");
         FILE* outputFile2 = fopen(fileName.c_str(), "wb");
 
+        if (encryptedFile == NULL || outputFile2 == NULL) {
+                printf("[-] Failed to open the input/output files! Error code: %d\n", errno);
+                return false;
+        }
+
         printf("[*] Setting IV and decryption key\n");
 
         this->aesCrypter.setIv2(fileInfo.fileIV);
 
+        printf("CryptFile\n");
+        printf("  Filename:         %s\n", fileInfo.fileName);
+        printf("  isFolder:         %s\n", fileInfo.isFolder ? "True" : "False");
+        printf("  Enc. data size:   %ld\n", fileInfo.sizeFileData);
+        printf("  File key (hex):   %s\n", Utils::convertToHex(fileInfo.fileKey, 32).c_str());
+        printf("  File IV (hex):    %s\n", Utils::convertToHex(fileInfo.fileIV, 16).c_str());
+        printf("  File hash (MD5):  %s\n\n", Utils::convertToHex(fileInfo.fileHash, 16).c_str());
+
         // Set the key and IV and start decrypting.
-        if (!this->aesCrypter.setKey(fileInfo.fileKey, 32, // The key of the file.
+        fileInfo.fileKey[AES_256_KEY_SIZE] = '\0'; // For string termination.
+        if (!this->aesCrypter.setKey(fileInfo.fileKey, AES_256_KEY_SIZE, // The key of the file.
                 fileInfo.fileIV, // The IV of the file.
                 true
         )); 
@@ -620,21 +639,21 @@ bool Crypter::decryptFile(CryptFile fileInfo, FILE* inputFile)
         }
 
         // Validate the file with the hash.
-        char hashCheck[16];
+        unsigned char hashCheck[16];
         if (!this->md5SumFile(fileName.c_str(), hashCheck)) {
                 
                 printf("[-] Failed to retrieve the hash of the file to compare!\n\n");
                 return false;
         }
 
-        printf("[+] Hash comparising completed!\n");
 
         if (Utils::convertToHex(hashCheck, 16) != Utils::convertToHex(fileInfo.fileHash, 16)) {
                 
-                printf("[!] Invalid hash, crypt file has been altered without our permission!\n\n");
+                printf("[!] Invalid hash, crypt file has been altered and is now corrupted!\n\n");
                 printf("%s != %s\n", Utils::convertToHex(hashCheck, 16).c_str(), Utils::convertToHex(fileInfo.fileHash, 16).c_str());
                 return false;
         }
+        printf("[+] Hash comparising completed!\n");
         return true;
 }
 
@@ -674,9 +693,9 @@ bool Crypter::encryptFolder(string folderName, FILE* outputFile)
                 if (!this->copyFileDataToFilePointer((string)cryptFile.fileName + ".enc", outputFile))
                         return false;
         }
+        
         fclose(outputFile);
         printf("[!] Locking finished!\n\n");
-        return true;
 
         for (int i = 0; i < folderList.size(); i++) {
 
@@ -688,16 +707,30 @@ bool Crypter::encryptFolder(string folderName, FILE* outputFile)
                 printf("  isFolder:         %s\n", cryptFile.isFolder ? "True" : "False");
                 printf("  Enc. data size:   %ld\n", cryptFile.sizeFileData);
                 printf("  File key (hex):   %s\n", Utils::convertToHex(cryptFile.fileKey, 32).c_str());
-                printf("  File IV (hex):    %s\n", Utils::convertToHex((char*)cryptFile.fileIV, 16).c_str());
+                printf("  File IV (hex):    %s\n", Utils::convertToHex(cryptFile.fileIV, 16).c_str());
                 printf("  File hash (MD5):  %s\n\n", Utils::convertToHex(cryptFile.fileHash, 16).c_str());
         }
 
         return true;
 }      
 
-bool Crypter::decryptFolder(string folderName, FILE* inputFile)
+bool Crypter::decryptFolder(CryptFile cryptFile)
 {
-        return false;
+        printf("[*] Decrypting folder %s\n", cryptFile.fileName);
+        if (mkdir(cryptFile.fileName, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
+                
+                if (errno == EEXIST) {
+                        printf("[-] Failed to create a new directory! Directory-name already exists %s!\n", cryptFile.fileName);
+                }
+                else if (errno == EACCES) {
+                        printf("[-] Failed to create a new directory! Access denied!\n");
+                }
+                else {
+                        printf("[-] Failed to create a new directory! Error code: %d\n", errno);
+                }     
+                return false; 
+        }
+        return true;
 }
 
 vector<Crypter::CryptFile> Crypter::loopFolder(string folderName)

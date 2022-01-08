@@ -16,11 +16,11 @@ class AESCrypter {
 public:
         AESCrypter();
         ~AESCrypter();
-        void createRandomKey( char*);
+        void createRandomKey(unsigned char*);
         void setIv(unsigned char*);
         void setIv2(unsigned char*);
         unsigned char* getIv();
-        bool setKey(string key, int keyLen, unsigned char* iv, bool decrypt);
+        bool setKey(unsigned char* key, int keyLen, unsigned char* iv, bool decrypt);
 
         unsigned char* encryptData(char* data, int sizeData, int *sizeOutput);
         unsigned char* decryptData(char* data, int sizeData, int* sizeOutput);
@@ -28,7 +28,7 @@ public:
 
 private:
         EVP_CIPHER_CTX* cipherContext;
-        const EVP_CIPHER* encryptionMethod = EVP_aes_256_cbc();
+        const EVP_CIPHER* encryptionMethod = EVP_aes_256_cbc_hmac_sha256();
         unsigned char IV[16];
 
         static void string_to_uchar(string str, unsigned char* charArr);
@@ -55,7 +55,7 @@ AESCrypter::~AESCrypter()
         EVP_CIPHER_CTX_free(this->cipherContext);
 }
 
-void AESCrypter::createRandomKey(char* key)
+void AESCrypter::createRandomKey(unsigned char* key)
 {
         unsigned char randomKey[32];
         RAND_bytes(randomKey, 32);
@@ -81,7 +81,7 @@ unsigned char* AESCrypter::getIv() {
         return this->IV;
 }
 
-bool AESCrypter::setKey(string key, int lenKey, unsigned char* passedIV = NULL, bool decrypt = false)
+bool AESCrypter::setKey(unsigned char* passedKey, int lenKey, unsigned char* passedIV = NULL, bool decrypt = false)
 {
         // Find out how long the key size can be.                                                               
         if (lenKey > AES_256_KEY_SIZE) {
@@ -89,17 +89,19 @@ bool AESCrypter::setKey(string key, int lenKey, unsigned char* passedIV = NULL, 
                 return false;
         }
 
-        string oldKey = key;
-        key.clear();
+
+        unsigned char key[AES_256_KEY_SIZE];
+
         if (lenKey < AES_256_KEY_SIZE) {
-                for (int i = 0; i < lenKey -1; i++) // Minus 1 for the null byte.
-                        key.push_back(oldKey[i]);
+                for (int i = 0; i < lenKey; i++) // Minus 1 for the null byte.
+                        key[i] = passedKey[i];
                 for (int i = lenKey; i < AES_256_KEY_SIZE; i++)
-                        key.push_back('X');
+                        key[i] = 'X';
         }
+        else
+                memcpy(key, passedKey, AES_256_KEY_SIZE);
 
         if (!decrypt) {
-
                 // Generate random IV.
                 unsigned char iv_enc[AES_BLOCK_SIZE];
                 RAND_bytes(iv_enc, AES_BLOCK_SIZE);
@@ -117,7 +119,7 @@ bool AESCrypter::setKey(string key, int lenKey, unsigned char* passedIV = NULL, 
 
                 /* Now we can set key and IV */
                 // this->IV
-                if(!EVP_CipherInit_ex(this->cipherContext, NULL, NULL, (unsigned char*)"XXXXXXXXXXXXXXXX", (unsigned char*)key.c_str(), 1)){
+                if(!EVP_CipherInit_ex(this->cipherContext, NULL, NULL, (unsigned char*)"XXXXXXXXXXXXXXXX", key, 1)){
                         fprintf(stderr, "ERROR: EVP_CipherInit_ex failed. OpenSSL error: %s\n", 
                         ERR_error_string(ERR_get_error(), NULL));
                         return false;
@@ -138,7 +140,13 @@ bool AESCrypter::setKey(string key, int lenKey, unsigned char* passedIV = NULL, 
 
                 /* Now we can set key and IV */
                 // passedIV
-                if(!EVP_CipherInit_ex(this->cipherContext, NULL, NULL, (unsigned char*)"XXXXXXXXXXXXXXXX", (unsigned char*)key.c_str(), 0)){
+                printf("Key size: %d\n", sizeof(key));
+
+                for (int i = 0; i < AES_256_KEY_SIZE; i++)
+                        printf("%02x", key[i]);
+                printf("\n");
+
+                if(!EVP_CipherInit_ex(this->cipherContext, NULL, NULL, (unsigned char*)"XXXXXXXXXXXXXXXX", key, 0)){
                         fprintf(stderr, "ERROR: EVP_CipherInit_ex failed. OpenSSL error: %s\n", 
                         ERR_error_string(ERR_get_error(), NULL));
                         return false;
@@ -207,22 +215,26 @@ bool AESCrypter::encryptDecryptFile(FILE* inputFile, FILE* outputFile, unsigned 
         *sizeOutput = 0;
 
         for (;;) {
-               // Read in data in blocks until EOF. Update the ciphering with each read.
+
+                // Read in data in blocks until EOF. Update the ciphering with each read.
                 num_bytes_read = fread(in_buf, sizeof(unsigned char), BUFSIZE, inputFile);
                 if (ferror(inputFile)){
                         fprintf(stderr, "# Failed to read bytes from file! Error: %s\n", strerror(errno));
+                        fclose(outputFile);
                         return false;
                 } 
 
                 if(!EVP_CipherUpdate(this->cipherContext, out_buf, &out_len, in_buf, num_bytes_read)){
                         fprintf(stderr, "# Failed to update cipher block. OpenSSL error: %s\n", 
                                 ERR_error_string(ERR_get_error(), NULL));
+                        fclose(outputFile);
                         return false;
                 }
 
                 fwrite(out_buf, sizeof(unsigned char), out_len, outputFile);
                 if (ferror(outputFile)) {
                         fprintf(stderr, "# Failed to write data to file! Error: %s\n", strerror(errno));
+                        fclose(outputFile);
                         return false;
                 }
                 
@@ -235,8 +247,9 @@ bool AESCrypter::encryptDecryptFile(FILE* inputFile, FILE* outputFile, unsigned 
 
         // Now cipher the final block and write it out to file.
         if(!EVP_CipherFinal_ex(this->cipherContext, out_buf, &out_len)) {
-                fprintf(stderr, "# Faield to finalize cipher! OpenSSL error: %s\n", 
+                fprintf(stderr, "# Failed to finalize cipher! OpenSSL error: %s\n", 
                         ERR_error_string(ERR_get_error(), NULL));
+                fclose(outputFile);
                 return false;
         }
 
@@ -244,11 +257,11 @@ bool AESCrypter::encryptDecryptFile(FILE* inputFile, FILE* outputFile, unsigned 
 
         if (ferror(outputFile)) {
                 fprintf(stderr, "# Failed to write the last bits to file! Error: %s\n", strerror(errno));
+                fclose(outputFile);
                 return false;
         }      
         *sizeOutput += out_len;
 
-        fclose(inputFile);
         fclose(outputFile);
 
         return true;

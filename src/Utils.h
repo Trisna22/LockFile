@@ -6,7 +6,7 @@
 class Utils
 {
 public:
-        static string convertToHex(char* arr, int size);
+        static string convertToHex(unsigned char* arr, int size);
         static unsigned char* convertToBinary(string data); 
         static void fillCharArray(string data, char* arr);
         static long getFileSize(string fileName);
@@ -15,7 +15,7 @@ public:
 
 #endif // !Utils_H
 
-string Utils::convertToHex(char* arr, int size)
+string Utils::convertToHex(unsigned char* arr, int size)
 {
         stringstream ss;
         ss << hex << std::setfill('0');

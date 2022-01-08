@@ -18,13 +18,13 @@ run:
 	./build/$(OUTPUT_FILE) -e ./testFile.txt
 
 encrypt:
-	find . -name *.enc -type f -delete
-	mv ./testFiles/test2 ./testFiles/test
+	find -name *.enc -type f -delete
+	mv ./testFiles/testFolder2 ./testFiles/testFolder
 	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
 	./build/$(OUTPUT_FILE) -e ./testFiles/testFile.txt
 
 decrypt:
-	mv ./testFiles/test ./testFiles/test2
+	mv ./testFiles/testFolder ./testFiles/testFolder2
 	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
 	./build/$(OUTPUT_FILE) -d ./testFiles/testFile.txt.crypt
 
@@ -39,3 +39,12 @@ check:
 debug:
 	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/main2.cpp --no-warnings -lcrypto
 	./build/$(OUTPUT_FILE)
+
+reset: 
+	rm -rf ./testFiles/testFolder
+	rm -rf ./testFiles/testFolder2
+	rm ./testFiles/testFolder.crypt
+	mkdir -p ./testFiles/testFolder
+	echo "A big test file inside test folder!!!" > ./testFiles/testFolder/test.txt
+	mkdir -p ./testFiles/testFolder/testFolder2
+	echo "A big test file inside test folder!!!" > ./testFiles/testFolder/testFolder2/test2.txt

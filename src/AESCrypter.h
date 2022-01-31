@@ -119,7 +119,12 @@ bool AESCrypter::setKey(unsigned char* passedKey, int lenKey, unsigned char* pas
 
                 /* Now we can set key and IV */
                 // this->IV
-                if(!EVP_CipherInit_ex(this->cipherContext, NULL, NULL, (unsigned char*)"XXXXXXXXXXXXXXXX", key, 1)){
+                /*if(!EVP_CipherInit_ex(this->cipherContext, NULL, NULL, (unsigned char*)"XXXXXXXXXXXXXXXX", key, 1)){
+                        fprintf(stderr, "ERROR: EVP_CipherInit_ex failed. OpenSSL error: %s\n", 
+                        ERR_error_string(ERR_get_error(), NULL));
+                        return false;
+                }*/
+                if(!EVP_CipherInit_ex(this->cipherContext, NULL, NULL, (unsigned char*)"XXXXXXXXXXXXXXXX", (unsigned char*)"ABIGPASSWORDKEY", 1)){
                         fprintf(stderr, "ERROR: EVP_CipherInit_ex failed. OpenSSL error: %s\n", 
                         ERR_error_string(ERR_get_error(), NULL));
                         return false;
@@ -146,7 +151,12 @@ bool AESCrypter::setKey(unsigned char* passedKey, int lenKey, unsigned char* pas
                         printf("%02x", key[i]);
                 printf("\n");
 
-                if(!EVP_CipherInit_ex(this->cipherContext, NULL, NULL, (unsigned char*)"XXXXXXXXXXXXXXXX", key, 0)){
+                // if(!EVP_CipherInit_ex(this->cipherContext, NULL, NULL, (unsigned char*)"XXXXXXXXXXXXXXXX", key, 0)){
+                //         fprintf(stderr, "ERROR: EVP_CipherInit_ex failed. OpenSSL error: %s\n", 
+                //         ERR_error_string(ERR_get_error(), NULL));
+                //         return false;
+                // }
+                if(!EVP_CipherInit_ex(this->cipherContext, NULL, NULL, (unsigned char*)"XXXXXXXXXXXXXXXX", (unsigned char*)"ABIGPASSWORDKEY", 0)){
                         fprintf(stderr, "ERROR: EVP_CipherInit_ex failed. OpenSSL error: %s\n", 
                         ERR_error_string(ERR_get_error(), NULL));
                         return false;

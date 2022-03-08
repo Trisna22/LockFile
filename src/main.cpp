@@ -17,6 +17,12 @@ void help() {
         printf("%s\n", helpStr.c_str());
 }
 
+void version() {
+        string versionStr = "\nAll rights served by ramb0 2021.\n";
+        versionStr += "Version 1.0\n";
+        printf("%s\n", versionStr.c_str());
+}
+
 int main(int argc, char*argv[]) {
 
         printf("LockFile 1.0 (c) ramb0 2021\n\n");
@@ -35,48 +41,41 @@ int main(int argc, char*argv[]) {
                 }
                 else {
                         string arg = argv[i];
-                        if (arg == "-e") {
-                                Crypter crypter;
-                                crypter.createCryptFile("./testFiles/testFolder");
+
+                        Crypter crypter;
+                        if ((arg == "-e" || arg == "--encrypt")&& argc == 3) {
+                                crypter.createCryptFile(argv[2]);
                                 return 0;
                         }
-                        else if (arg == "-ef") {
+                        else if ((arg == "-i" || arg == "--info") && argc == 3) {
                                 Crypter crypter;
-                                crypter.createCryptFile("./testFiles/test.txt");
+                                crypter.readCryptHeader(argv[2]);
+                                crypter.readCryptFiles(argv[2]);
                                 return 0;
                         }
-                        else if (arg == "-i") {
+                        else if ((arg == "-d" || arg == "--decrypt") && argc == 3) {
                                 Crypter crypter;
-                                crypter.readCryptHeader("./testFiles/testFolder.crypt");
-                                crypter.readCryptFiles("./testFiles/testFolder.crypt");
+                                crypter.openCryptFile(argv[2]);
                                 return 0;
                         }
-                        else if (arg == "-if") {
+                        else if ((arg == "-c" || arg == "--check") && argc == 3) {
                                 Crypter crypter;
-                                crypter.readCryptHeader("./testFiles/test.txt.crypt");
-                                crypter.readCryptFiles("./testFiles/test.txt.crypt");
-                                return 0;
-                        }
-                        else if (arg == "-d") {
-                                Crypter crypter;
-                                crypter.openCryptFile("./testFiles/testFolder.crypt");
-                                return 0;
-                        }
-                        else if (arg == "-df") {
-                                Crypter crypter;
-                                crypter.openCryptFile("./testFiles/test.txt.crypt");
-                                return 0;
-                        }
-                        else if (arg == "-c") {
-                                Crypter crypter;
-                                if (crypter.checkCryptFile("./testFiles/testFolder.crypt")) {
+                                if (crypter.checkCryptFile(argv[2])) {
 
                                         printf("[!] Valid .crypt file!\n");
                                 }
                                 return 0;   
                         }
+                        else if ((arg == "-h" || arg == "--help") && argc == 3) {
+                                help();
+                                return 0;
+                        }
+                        else if ((arg == "-v" || arg == "--version") && argc == 3) {
+                                version();
+                                return 0;
+                        }       
                         else {
-                                printf("Invalid options or arguments given!\n");
+                                printf("Invalid (combination of) options or arguments given!\n");
                                 usage();
                                 return 0;
                         }

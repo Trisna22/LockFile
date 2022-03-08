@@ -11,6 +11,7 @@ public:
         static void fillCharArray(string data, char* arr);
         static long getFileSize(string fileName);
         static string validateSingleFile(string path);
+        static bool shredFile(string fileName);
 };
 
 #endif // !Utils_H
@@ -72,4 +73,11 @@ string Utils::validateSingleFile(string path)
                 return path.substr(path.find_last_of("/")+1);
 
         return path;
+}
+
+bool Utils::shredFile(string fileName)
+{
+        // TODO use our shredder code from our virus.
+        unlink(fileName.c_str());
+        return true;
 }

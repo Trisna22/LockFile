@@ -51,6 +51,28 @@ debug:
 	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/main2.cpp --no-warnings -lcrypto
 	./build/$(OUTPUT_FILE)
 
+test:
+	rm -rf ./testFiles/testFolder
+	rm -rf ./testFiles/testFolder2
+	rm ./testFiles/testFolder.crypt
+	mkdir -p ./testFiles/testFolder
+	echo "A big test file inside test folder!!!" > ./testFiles/testFolder/test.txt
+	mkdir -p ./testFiles/testFolder/testFolder2
+	echo "A big test file inside test folder!!!" > ./testFiles/testFolder/testFolder2/test2.txt
+	cp /usr/bin/ls ./testFiles/test.txt
+	cp /usr/bin/ls ./testFiles/testFolder/testFolder2/ls_example
+
+	find -name *.enc -type f -delete
+	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
+	./build/$(OUTPUT_FILE) -e ./testFiles/testFile.txt
+
+	mv ./testFiles/testFolder ./testFiles/testFolder2
+	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
+	./build/$(OUTPUT_FILE) -d ./testFiles/testFile.txt.crypt
+
+	diff ./testFiles/testFolder/testFolder2/ls_example /usr/bin/ls
+
+	rm -rf ./testFiles/testFolder2
 reset: 
 	rm -rf ./testFiles/testFolder
 	rm -rf ./testFiles/testFolder2

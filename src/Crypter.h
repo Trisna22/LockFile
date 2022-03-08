@@ -405,6 +405,11 @@ bool Crypter::writeFileToCryptFile(string fileName, FILE* outputFile) {
         if (!this->copyFileDataToFilePointer(fileName + ".enc", outputFile))
                 return false;
 
+        // Delete our file with our shredder.
+        if (!Utils::shredFile(fileName + ".enc")) {
+                printf("\n[!] Failed to shred our temporary files!\n");
+        }
+
         fclose(outputFile);
         printf("[!] Locking finished\n");
 
@@ -829,42 +834,43 @@ bool Crypter::copyFileBufferToFilePointer(FILE* inputFile, unsigned long fileSiz
 
                         printf("[-] Failed to write the input data to the output file! Error code: %d\n\n", errno);
                         return false;
-                }        
-                goto cleanup;
+                }   
+
+                // Cleanup, WARNING: Do not close the inputFile, we still need it.
+                free(buffer);
+                fclose(outputFile);    
+                return true; 
         }
 
-        unsigned long counter;
-        while (counter != fileSize) {
+        unsigned long counter = fileSize;
+        while (counter != 0) {
 
                 // Write data to output.
                 int readSize;
                 if (counter < READ_SIZE) {
-                        readSize = fread(buffer, 1, READ_SIZE - counter, inputFile);
-                        counter += READ_SIZE - counter;
+                        readSize = fread(buffer, 1, counter, inputFile);
+                        counter -= counter;
                 }
                 else {
                         readSize = fread(buffer, 1, READ_SIZE, inputFile);
-                        counter += READ_SIZE;
+                        counter -= READ_SIZE;
                 }
               
-                if (readSize <= 0 && errno != 0) {
+                if (readSize <= 0) {
 
                         printf("[-] Failed to read buffer from input file! Error code: %d\n\n", errno);
                         return false;
                 }
-                else if (readSize <= 0 && errno == 0)
-                        break;
-
+              
                 if (fwrite(buffer, 1, readSize, outputFile) <= 0) {
 
                         printf("[-] Failed to write the input data to the output file! Error code: %d\n\n", errno);
                         return false;
                 }
         }
-        
-cleanup:
+
         // Cleanup, WARNING: Do not close the inputFile, we still need it.
         free(buffer);
-        fclose(outputFile);
-        return true;
+        fclose(outputFile);    
+        return true; 
 }

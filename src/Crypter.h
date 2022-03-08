@@ -30,7 +30,7 @@ private:
                 unsigned long sizeFileData;     // File data size.
                 unsigned char fileKey[32];      // The key of the AES encryption.
                 unsigned char fileIV[16];       // The IV of the AES encryption.
-                unsigned char fileHash[16];              // The hash of the (unencrypted) content.
+                unsigned char fileHash[16];     // The hash of the (unencrypted) content.
         };
 
         struct __attribute__ ((packed)) CryptHeader {
@@ -135,6 +135,7 @@ bool Crypter::openCryptFile(string target)
                 return false;
         }
 
+        printf("[*] Reading CryptHeader (%d bytes)\n", sizeof(CryptHeader));
         CryptHeader cryptHeader;
         int fileRead = fread(&cryptHeader, 1, sizeof(CryptHeader), inputFile);
         if (fileRead == -1) {
@@ -152,7 +153,7 @@ bool Crypter::openCryptFile(string target)
         // this->decryptFileInfoSection(password)
 
         // Save every file info object in a array.
-        CryptFile fileInfos[cryptHeader.countFileInfos];
+        printf("[*] About to read %d CryptFile objects\n", cryptHeader.countFileInfos);
         for (int i = 0; i < cryptHeader.countFileInfos; i++) {
 
                 // Decrypt every file/folder in this file.
@@ -169,26 +170,18 @@ bool Crypter::openCryptFile(string target)
                         return false;
                 }
 
-                // Put the results in a list.
-                fileInfos[i] = cryptFile;
-        }
+                if (cryptFile.isFolder) {
 
-        // Loop trough the file infos.
-        for (int i = 0; i < cryptHeader.countFileInfos; i++) {
-                
-                if (fileInfos[i].isFolder) {
-                        // DO something.
-                        this->decryptFolder(fileInfos[i]);
+                        this->decryptFolder(cryptFile);
                         continue;
                 }
 
-                if (!this->decryptFile(fileInfos[i], inputFile)) {
+                if (!this->decryptFile(cryptFile, inputFile)) {
 
-                        printf("Failed to decrypt file number %d with filename %s!\n\n", i, fileInfos[i].fileName);
+                        printf("Failed to decrypt file number %d with filename %s!\n\n", i, cryptFile.fileName);
                         return false;
                 }
 
-                printf("[!] Unpacked and decrypted %s\n", fileInfos[i].fileName);
         }
 
         fclose(inputFile);
@@ -603,17 +596,15 @@ bool Crypter::decryptFile(CryptFile fileInfo, FILE* inputFile)
                 return false;
         }
 
-        printf("[*] Setting IV and decryption key\n");
-
         this->aesCrypter.setIv2(fileInfo.fileIV);
 
-        printf("CryptFile\n");
-        printf("  Filename:         %s\n", fileInfo.fileName);
-        printf("  isFolder:         %s\n", fileInfo.isFolder ? "True" : "False");
-        printf("  Enc. data size:   %ld\n", fileInfo.sizeFileData);
-        printf("  File key (hex):   %s\n", Utils::convertToHex(fileInfo.fileKey, 32).c_str());
-        printf("  File IV (hex):    %s\n", Utils::convertToHex(fileInfo.fileIV, 16).c_str());
-        printf("  File hash (MD5):  %s\n\n", Utils::convertToHex(fileInfo.fileHash, 16).c_str());
+        // printf("CryptFile\n");
+        // printf("  Filename:         %s\n", fileInfo.fileName);
+        // printf("  isFolder:         %s\n", fileInfo.isFolder ? "True" : "False");
+        // printf("  Enc. data size:   %ld\n", fileInfo.sizeFileData);
+        // printf("  File key (hex):   %s\n", Utils::convertToHex(fileInfo.fileKey, 32).c_str());
+        // printf("  File IV (hex):    %s\n", Utils::convertToHex(fileInfo.fileIV, 16).c_str());
+        // printf("  File hash (MD5):  %s\n\n", Utils::convertToHex(fileInfo.fileHash, 16).c_str());
 
         // Set the key and IV and start decrypting.
         fileInfo.fileKey[AES_256_KEY_SIZE] = '\0'; // For string termination.
@@ -628,8 +619,6 @@ bool Crypter::decryptFile(CryptFile fileInfo, FILE* inputFile)
                 printf("[-] Failed to decrypt the file with the key and IV!\n\n");
                 return false;
         }
-
-        printf("[+] Decryption bytes written succesfully (%ld bytes)\n", outputSize);
 
         // Delete the temp file.
         if (unlink(TEMP_FILE) == -1) {
@@ -653,7 +642,8 @@ bool Crypter::decryptFile(CryptFile fileInfo, FILE* inputFile)
                 printf("%s != %s\n", Utils::convertToHex(hashCheck, 16).c_str(), Utils::convertToHex(fileInfo.fileHash, 16).c_str());
                 return false;
         }
-        printf("[+] Hash comparising completed!\n");
+
+        printf("[!] Unpacked and decrypted %s (%ld bytes)\n", fileName.c_str(), outputSize);
         return true;
 }
 
@@ -826,9 +816,37 @@ bool Crypter::copyFileBufferToFilePointer(FILE* inputFile, unsigned long fileSiz
 {
         char* buffer = (char*)malloc(READ_SIZE);
 
-        for (;;) {
+        // When the size of the file is smaller than the read size.
+        if (fileSize < READ_SIZE) {
+
+                int readSize = fread(buffer, 1, fileSize, inputFile);
+                if (readSize <= 0 && errno != 0) {
+                        printf("[-] Failed to read buffer from input file! Error code: %d\n\n", errno);
+                        return false;
+                }
+
+                if (fwrite(buffer, 1, readSize, outputFile) <= 0) {
+
+                        printf("[-] Failed to write the input data to the output file! Error code: %d\n\n", errno);
+                        return false;
+                }        
+                goto cleanup;
+        }
+
+        unsigned long counter;
+        while (counter != fileSize) {
+
                 // Write data to output.
-                int readSize = fread(buffer, 1, READ_SIZE, inputFile);
+                int readSize;
+                if (counter < READ_SIZE) {
+                        readSize = fread(buffer, 1, READ_SIZE - counter, inputFile);
+                        counter += READ_SIZE - counter;
+                }
+                else {
+                        readSize = fread(buffer, 1, READ_SIZE, inputFile);
+                        counter += READ_SIZE;
+                }
+              
                 if (readSize <= 0 && errno != 0) {
 
                         printf("[-] Failed to read buffer from input file! Error code: %d\n\n", errno);
@@ -843,7 +861,8 @@ bool Crypter::copyFileBufferToFilePointer(FILE* inputFile, unsigned long fileSiz
                         return false;
                 }
         }
-
+        
+cleanup:
         // Cleanup, WARNING: Do not close the inputFile, we still need it.
         free(buffer);
         fclose(outputFile);

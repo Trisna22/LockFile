@@ -258,6 +258,7 @@ bool AESCrypter::encryptDecryptFile(FILE* inputFile, FILE* outputFile, unsigned 
         *sizeOutput += out_len;
 
         fclose(outputFile);
+        fclose(inputFile);
 
         return true;
 }

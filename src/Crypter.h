@@ -483,6 +483,7 @@ bool Crypter::md5SumFile(string fileName, unsigned char* fileHash)
         // Cleanup.
         free(buffer);
         free(hash);
+        fclose(inputFile);
         return true;
 }
 
@@ -517,6 +518,8 @@ Crypter::CryptFile Crypter::encryptFile(string fileName, bool fromFolder)
         if (outputFile == NULL) {
 
                 printf("[-] Failed to open the output file for %s\n Error code: %d\n\n", fileName.c_str(), errno);
+                printf("WAITINGNG\n");
+                getchar();
                 return cryptFile;
         }
 

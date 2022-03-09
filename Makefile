@@ -57,7 +57,6 @@ test:
 
 	diff ./testFiles/testFolder/testFolder2/ls_example /usr/bin/ls
 
-	rm -rf ./testFiles/testFolder2
 reset: 
 	rm -rf ./testFiles/testFolder
 	rm -rf ./testFiles/testFolder2

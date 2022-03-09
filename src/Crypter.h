@@ -528,7 +528,6 @@ char* Crypter::decryptFileInfoSection(string password)
  */
 Crypter::CryptFile Crypter::encryptFile(string fileName, bool fromFolder)
 {
-        printf("CryptFile %s added\n", fileName.c_str());
         CryptFile cryptFile;
 
         FILE *inputFile = fopen(fileName.c_str(), "rb");
@@ -654,7 +653,7 @@ bool Crypter::decryptFile(CryptFileRead fileInfo, string fileName, FILE* inputFi
         }
 
         // Delete the temp file.
-        if (unlink(TEMP_FILE) == -1) {
+        if (!Utils::shredFile(TEMP_FILE)) {
 
                 printf("[-] Failed to delete the temporary file! Error code: %d\n\n", errno);
                 return false;
@@ -718,6 +717,11 @@ bool Crypter::encryptFolder(string folderName, FILE* outputFile)
                 // Write the encrypted file to .crypt file.
                 if (!this->copyFileDataToFilePointer((string)cryptFile.fileName + ".enc", outputFile))
                         return false;
+
+                // Delete the temporary file.
+                if (!Utils::shredFile((string)cryptFile.fileName + ".enc")) {
+                        printf("[-] Failed to shred the temp .enc file!\n");
+                }
         }
         
         fclose(outputFile);
@@ -759,6 +763,19 @@ bool Crypter::decryptFolder(CryptFileRead cryptFile, string folderName)
         return true;
 }
 
+/**
+ * @brief 
+ * 
+ * You should probably use closedir when you finish iterating through a 
+ * directory's contents.
+ * 
+ * Also, you might want to read the directory's listing into an array, 
+ * close the directory, and then recurse on the array. This might help with 
+ * traversing very deep directory structures.
+ * 
+ * @param folderName 
+ * @return vector<Crypter::CryptFile> 
+ */
 vector<Crypter::CryptFile> Crypter::loopFolder(string folderName)
 {
         vector<CryptFile> listFolder;
@@ -772,6 +789,8 @@ vector<Crypter::CryptFile> Crypter::loopFolder(string folderName)
                 printf("[-] Failed to open the directory for listing [%s]! Error code: %d\n", folderName.c_str(), errno);
                 return vector<CryptFile>();
         }
+
+        vector<string> folderListWait;
 
         struct dirent *fileHandler;
         while (fileHandler = readdir(dirHandler)) {
@@ -792,6 +811,8 @@ vector<Crypter::CryptFile> Crypter::loopFolder(string folderName)
                 }
         }
 
+        closedir(dirHandler);
+
         return listFolder;
 }
 
@@ -807,7 +828,7 @@ bool Crypter::copyFileDataToFilePointer(string fileName, FILE* outputFile)
         FILE* inputFile = fopen(fileName.c_str(), "rb");
         if (inputFile == NULL) {
 
-                printf("[-] Failed to open the encrypted file %s! Error code: %d\n\n", errno);
+                printf("[-] Failed to open the encrypted file %s! Error code: %d\n\n", fileName.c_str(), errno);
                 return false;
         }
 

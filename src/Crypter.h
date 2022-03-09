@@ -6,9 +6,11 @@
 #define Crypter_H
 
 #define READ_SIZE       4096
-#define LOG_ALL
+#define DONT_LOG_ALL
 #define SINGLE_FILE     0x01
 #define TEMP_FILE       ".crypt_tmp"
+
+#define BAR_WIDTH       70
 
 #define FILL_IV         "XXXXXXXXXXXXXXXX"
 #define FILL_KEY        "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
@@ -686,6 +688,7 @@ bool Crypter::decryptFile(CryptFileRead fileInfo, string fileName, FILE* inputFi
  */
 bool Crypter::encryptFolder(string folderName, FILE* outputFile)
 {
+        printf("[*] Scanning %s and encrypting data...\n", folderName.c_str());
         vector<CryptFile> folderList = this->loopFolder(folderName);
 
         // Generate the crypt header structure.
@@ -701,11 +704,27 @@ bool Crypter::encryptFolder(string folderName, FILE* outputFile)
 
         // Write all the crypt file objects.
         printf("[*] About to write %d CryptFile objects\n", folderList.size());
+
+        // Progress bar. (if possible)
+        bool progressBar = folderList.size() > 10;
+        float progress = 0.0;
+
         for (int i = 0; i < folderList.size(); i++) {
 
                 CryptFile cryptFile = folderList.at(i);
                 fwrite(&cryptFile, 1, sizeof(cryptFile), outputFile);
-                printf("[*] Written cryptfile %s (%d bytes)\n", cryptFile.fileName, sizeof(cryptFile));
+                if (progressBar) {
+                        printf(" [");
+                        int pos = BAR_WIDTH * progress;
+                        for (int j = 0; j < BAR_WIDTH; j++) {
+                                if (j < pos) printf("=");
+                                else if (j == pos) printf(">");
+                                else printf(" ");
+                        }
+                        printf("] %f %\r", progress *100.0);
+                }
+                else
+                        printf("[*] Written cryptfile %s (%d bytes)\n", cryptFile.fileName, sizeof(cryptFile));
 
                 // Write the filename seperately.
                 fwrite(cryptFile.fileName, 1, cryptFile.fileNameLen, outputFile);
@@ -718,27 +737,37 @@ bool Crypter::encryptFolder(string folderName, FILE* outputFile)
                 if (!this->copyFileDataToFilePointer((string)cryptFile.fileName + ".enc", outputFile))
                         return false;
 
+                if (!progressBar) {
+                        printf("[*] Encrypted file data copy (%d bytes)\n", cryptFile.sizeFileData);
+                }
+
                 // Delete the temporary file.
                 if (!Utils::shredFile((string)cryptFile.fileName + ".enc")) {
                         printf("[-] Failed to shred the temp .enc file!\n");
                 }
+
+                // Increment in progress.
+                progress = ((float)i / (float)folderList.size());
         }
         
         fclose(outputFile);
-        printf("[!] Locking finished!\n\n");
+        printf("\n[!] Locking finished!\n\n");
 
-        for (int i = 0; i < folderList.size(); i++) {
+        // Or else it would be too much for our screen.
+        if (folderList.size() < 8) {
+                for (int i = 0; i < folderList.size(); i++) {
 
-                CryptFile cryptFile = folderList.at(i);
-                // Print out the file info.
-                printf("CryptFile [%d]\n", i);
-                printf("  Filename length:  %d\n", cryptFile.fileNameLen);
-                printf("  Filename:         %s\n", cryptFile.fileName);
-                printf("  isFolder:         %s\n", cryptFile.isFolder ? "True" : "False");
-                printf("  Enc. data size:   %ld\n", cryptFile.sizeFileData);
-                printf("  File key (hex):   %s\n", Utils::convertToHex(cryptFile.fileKey, 32).c_str());
-                printf("  File IV (hex):    %s\n", Utils::convertToHex(cryptFile.fileIV, 16).c_str());
-                printf("  File hash (MD5):  %s\n\n", Utils::convertToHex(cryptFile.fileHash, 16).c_str());
+                        CryptFile cryptFile = folderList.at(i);
+                        // Print out the file info.
+                        printf("CryptFile [%d]\n", i);
+                        printf("  Filename length:  %d\n", cryptFile.fileNameLen);
+                        printf("  Filename:         %s\n", cryptFile.fileName);
+                        printf("  isFolder:         %s\n", cryptFile.isFolder ? "True" : "False");
+                        printf("  Enc. data size:   %ld\n", cryptFile.sizeFileData);
+                        printf("  File key (hex):   %s\n", Utils::convertToHex(cryptFile.fileKey, 32).c_str());
+                        printf("  File IV (hex):    %s\n", Utils::convertToHex(cryptFile.fileIV, 16).c_str());
+                        printf("  File hash (MD5):  %s\n\n", Utils::convertToHex(cryptFile.fileHash, 16).c_str());
+                }
         }
 
         return true;
@@ -780,7 +809,6 @@ vector<Crypter::CryptFile> Crypter::loopFolder(string folderName)
 {
         vector<CryptFile> listFolder;
         listFolder.push_back(Crypter::generateCryptFolder(folderName));
-        printf("CryptFolder %s added\n", folderName.c_str());
 
         // Start looping the folder.
         DIR* dirHandler = opendir(folderName.c_str());
@@ -859,7 +887,6 @@ bool Crypter::copyFileDataToFilePointer(string fileName, FILE* outputFile)
         // Delete the encrypted file. 
         fclose(inputFile);
         free(buffer);
-        printf("[*] Encrypted file data copy (%d bytes)\n", totalBytes);
         return true;
 }
 

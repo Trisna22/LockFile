@@ -11,41 +11,26 @@ BUILD_FOLDER=./build
 default:
 	mkdir -p ./build/
 	mkdir -p ./src/
-	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
-
-run:
-	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
-	./build/$(OUTPUT_FILE) -e ./testFile.txt
+	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) -ggdb3 --no-warnings -lcrypto
 
 encrypt:
 	find -name *.enc -type f -delete
 	mv ./testFiles/testFolder2 ./testFiles/testFolder
 	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
-	./build/$(OUTPUT_FILE) -e ./testFiles/testFile.txt
-
-encryptf:
-	find -name *.enc -type f -delete
-	mv ./testFiles/testFolder2 ./testFiles/testFolder
-	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
-	./build/$(OUTPUT_FILE) -ef ./testFiles/testFile.txt
+	./build/$(OUTPUT_FILE) -e ./testFiles/testFolder
 
 decrypt:
 	mv ./testFiles/testFolder ./testFiles/testFolder2
 	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
-	./build/$(OUTPUT_FILE) -d ./testFiles/testFile.txt.crypt
-
-decryptf:
-	mv ./testFiles/testFolder ./testFiles/testFolder2
-	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
-	./build/$(OUTPUT_FILE) -df ./testFiles/testFile.txt.crypt
+	./build/$(OUTPUT_FILE) -d ./testFiles/testFolder.crypt
 
 info: 
 	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
-	./build/$(OUTPUT_FILE) -i ./testFiles/testFile.txt.crypt
+	./build/$(OUTPUT_FILE) -i ./testFiles/testFolder.crypt
 
 check:
 	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
-	./build/$(OUTPUT_FILE) -c ./testFiles/test.crypt
+	./build/$(OUTPUT_FILE) -c ./testFiles/testFolder.crypt
 
 debug:
 	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/main2.cpp --no-warnings -lcrypto
@@ -64,11 +49,11 @@ test:
 
 	find -name *.enc -type f -delete
 	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
-	./build/$(OUTPUT_FILE) -e ./testFiles/testFile.txt
+	./build/$(OUTPUT_FILE) -e ./testFiles/testFolder
 
 	mv ./testFiles/testFolder ./testFiles/testFolder2
 	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
-	./build/$(OUTPUT_FILE) -d ./testFiles/testFile.txt.crypt
+	./build/$(OUTPUT_FILE) -d ./testFiles/testFolder.crypt
 
 	diff ./testFiles/testFolder/testFolder2/ls_example /usr/bin/ls
 

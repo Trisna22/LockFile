@@ -8,7 +8,7 @@ class Utils
 public:
         static string convertToHex(unsigned char* arr, int size);
         static unsigned char* convertToBinary(string data); 
-        static void fillCharArray(string data, char* arr);
+        static void fillCharArray(string data, int length, char* arr);
         static long getFileSize(string fileName);
         static string validateSingleFile(string path);
         static bool shredFile(string fileName);
@@ -44,15 +44,10 @@ unsigned char* Utils::convertToBinary(string data)
         return newArr;
 }
 
-void Utils::fillCharArray(string data, char* arr)
+void Utils::fillCharArray(string data, int length, char* arr)
 {
-        for (int i = 0; i < data.length(); i++) {
-                arr[i] = data[i];
-        }
-
-        for (int i = data.length(); i < 100; i++) {
-                arr[i] = '\x00';
-        }
+        memcpy(arr, data.c_str(), length);
+        arr[length] = '\0';
 }
 
 long Utils::getFileSize(string fileName) 

@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <vector>
+#include <sys/resource.h>
 
 #include <openssl/aes.h>
 #include <openssl/err.h>

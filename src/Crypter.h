@@ -25,6 +25,14 @@ public:
         bool readCryptFiles(string target);
 	bool checkCryptFile(string fileName);
 private:
+        /**
+         * @brief 
+         * Change the CryptFile structure to change fileName to be unlimited size, bc this 
+         * triggers a stack overflow and corrupts our memory. We can keep track of the length
+         *  with fileNameLen.
+         * 
+         * DONE
+         */
         struct __attribute__ ((packed)) CryptFile {
                 int fileNameLen;                // The size of the filename.
                 bool isFolder;                  // Is folder?
@@ -44,12 +52,7 @@ private:
                 unsigned char fileHash[16];     // The hash of the (unencrypted) content.
                 //char fileName[fileNameLen];   // The filename (not in structure, but after)
         };
-        /**
-         * @brief 
-         * Change the CryptFile structure to change fileName to be unlimited size, bc this 
-         * triggers a stack overflow and corrupts our memory. We can keep track of the length
-         *  with fileNameLen.
-         */
+        
 
         struct __attribute__ ((packed)) CryptHeader {
                 unsigned char magic[6];         // Magic bytes.
@@ -175,6 +178,10 @@ bool Crypter::openCryptFile(string target)
 
         // Save every file info object in a array.
         printf("[*] About to read %d CryptFile objects\n", cryptHeader.countFileInfos);
+
+        bool progressBar = true;//cryptHeader.countFileInfos > 10;
+        float progress = 0.0;
+
         for (int i = 0; i < cryptHeader.countFileInfos; i++) {
 
                 // Decrypt every file/folder in this file.
@@ -195,18 +202,44 @@ bool Crypter::openCryptFile(string target)
                 fread(&fileNameBuffer, 1, cryptFile.fileNameLen, inputFile);
                 fileNameBuffer[cryptFile.fileNameLen] = '\0';
 
+                if (progressBar) {
+                        printf(" [");
+                        int pos = BAR_WIDTH * progress;
+                        for (int j = 0; j < BAR_WIDTH; j++) {
+                                if (j < pos) printf("=");
+                                else if (j == pos) printf(">");
+                                else printf(" ");
+                        }
+                        printf("] %f %\r", progress *100.0);
+                }
+
                 if (cryptFile.isFolder) {
 
+                        if (!progressBar)
+                                printf("[*] Decrypting folder %s\n", fileNameBuffer);
                         this->decryptFolder(cryptFile, fileNameBuffer);
                         continue;
                 }
+
+                if (!progressBar)
+                        printf("[*] Decrypting file %s\n", fileNameBuffer);
 
                 if (!this->decryptFile(cryptFile, fileNameBuffer, inputFile)) {
 
                         printf("Failed to decrypt file number %d with filename %s!\n\n", i, fileNameBuffer);
                         return false;
                 }
+                if (!progressBar)
+                        printf("[!] Unpacked and decrypted %s\n", fileNameBuffer);
+                
+                // Increment in progress.
+                progress = ((float)i / (float)cryptHeader.countFileInfos);
 
+
+        }
+
+        if (progressBar) {
+                printf("\n[!] Decrypting and unpacking finished\n\n");
         }
 
         fclose(inputFile);
@@ -254,6 +287,7 @@ bool Crypter::readCryptHeader(string target)
         printf("  Count file infos: %d\n\n", cryptHeader.countFileInfos);
         return true;
 }
+
 
 /**
  * Reads the content of the .crypt file for giving global information.
@@ -320,6 +354,7 @@ bool Crypter::readCryptFiles(string target)
         fclose(inputFile);
         return true;
 }
+
 
 /**
  * Checks the given .crypt file if it is a valid crypt file.
@@ -606,8 +641,6 @@ bool Crypter::decryptFile(CryptFileRead fileInfo, string fileName, FILE* inputFi
         // Setting up the variables.
         unsigned long fileSize = fileInfo.sizeFileData;
 
-        printf("[*] Decrypting file %s\n", fileName.c_str());
-
         FILE* outputFile = fopen(TEMP_FILE, "wb");
         if (outputFile == NULL) {
 
@@ -677,7 +710,6 @@ bool Crypter::decryptFile(CryptFileRead fileInfo, string fileName, FILE* inputFi
                 return false;
         }
 
-        printf("[!] Unpacked and decrypted %s (%ld bytes)\n", fileName.c_str(), outputSize);
         return true;
 }
 
@@ -775,7 +807,6 @@ bool Crypter::encryptFolder(string folderName, FILE* outputFile)
 
 bool Crypter::decryptFolder(CryptFileRead cryptFile, string folderName)
 {
-        printf("[*] Decrypting folder %s\n", folderName.c_str());
         if (mkdir(folderName.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
                 
                 if (errno == EEXIST) {
@@ -793,16 +824,10 @@ bool Crypter::decryptFolder(CryptFileRead cryptFile, string folderName)
 }
 
 /**
- * @brief 
+ * @brief Loops trough the folder structure by the given parameter and returns 
+ * a vector of CryptFile objects of the subfiles/folders of the folder.
  * 
- * You should probably use closedir when you finish iterating through a 
- * directory's contents.
- * 
- * Also, you might want to read the directory's listing into an array, 
- * close the directory, and then recurse on the array. This might help with 
- * traversing very deep directory structures.
- * 
- * @param folderName 
+ * @param folderName The foldername to look in to.
  * @return vector<Crypter::CryptFile> 
  */
 vector<Crypter::CryptFile> Crypter::loopFolder(string folderName)

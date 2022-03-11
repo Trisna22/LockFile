@@ -229,13 +229,12 @@ bool Crypter::openCryptFile(string target)
                         printf("Failed to decrypt file number %d with filename %s!\n\n", i, fileNameBuffer);
                         return false;
                 }
+
                 if (!progressBar)
                         printf("[!] Unpacked and decrypted %s\n", fileNameBuffer);
                 
                 // Increment in progress.
                 progress = ((float)i / (float)cryptHeader.countFileInfos);
-
-
         }
 
         if (progressBar) {
@@ -338,17 +337,23 @@ bool Crypter::readCryptFiles(string target)
                         return false;
                 }
 
+                char fileNameBuffer[cryptFile.fileNameLen];
+                fread(&fileNameBuffer, 1, cryptFile.fileNameLen, inputFile);
+                fileNameBuffer[cryptFile.fileNameLen] = '\0';
+
                 // Print out the file info.
                 printf("CryptFile [%d]\n", i);
                 printf("  Filename length:  %d\n", cryptFile.fileNameLen);
-                //printf("  Filename:         %s\n", cryptFile.fileName);
+                printf("  Filename:         %s\n", fileNameBuffer);
                 printf("  isFolder:         %s\n", cryptFile.isFolder ? "True" : "False");
                 printf("  Enc. data size:   %ld\n", cryptFile.sizeFileData);
                 printf("  File key (hex):   %s\n", Utils::convertToHex(cryptFile.fileKey, 32).c_str());
                 printf("  File IV (hex):    %s\n", Utils::convertToHex(cryptFile.fileIV, 16).c_str());
                 printf("  File hash (MD5):  %s\n\n", Utils::convertToHex(cryptFile.fileHash, 16).c_str());
 
-                // Now skip over the file data.
+                // Skip over the file. (That is our encrypted content)
+                char bufferData[cryptFile.sizeFileData];
+                fread(bufferData, 1, cryptFile.sizeFileData, inputFile);
         }
 
         fclose(inputFile);

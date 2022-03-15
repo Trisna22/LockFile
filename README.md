@@ -4,7 +4,7 @@ Encrypts/decrypts files on local computer with custom combination of encryption 
 
 ## TODO
 ```
-- Compression algorithm?
 - File shredder for the .enc files.
 - Section encryption/decryption.
+- Create a TUI (Terminal User Interface) animation?
 ```

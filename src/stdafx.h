@@ -7,6 +7,7 @@
 #include <dirent.h>
 #include <vector>
 #include <fcntl.h>
+#include <sys/sendfile.h>
 
 #include <openssl/aes.h>
 #include <openssl/err.h>
@@ -15,5 +16,6 @@
 
 #include <openssl/rsa.h>
 #include <openssl/pem.h>
+#include <openssl/ssl.h>
 
 using namespace std;

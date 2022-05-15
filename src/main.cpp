@@ -44,7 +44,7 @@ int main(int argc, char*argv[]) {
 
                         Crypter crypter;
                         if ((arg == "-e" || arg == "--encrypt")&& argc == 3) {
-                                crypter.createCryptFile(argv[2]);
+                                crypter.createCryptFile(argv[2], Utils::requirePassword());
                                 return 0;
                         }
                         else if ((arg == "-i" || arg == "--info") && argc == 3) {
@@ -55,7 +55,7 @@ int main(int argc, char*argv[]) {
                         }
                         else if ((arg == "-d" || arg == "--decrypt") && argc == 3) {
                                 Crypter crypter;
-                                crypter.openCryptFile(argv[2]);
+                                crypter.openCryptFile(argv[2], Utils::requirePassword());
                                 return 0;
                         }
                         else if ((arg == "-c" || arg == "--check") && argc == 3) {

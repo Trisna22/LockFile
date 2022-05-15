@@ -10,9 +10,10 @@
 class RSACrypter {
 public:
         RSACrypter();
-        bool generateKeys();
+        bool generateKeys(string passphrase);
         char* getPublicKey(int *lenPublicKey);
         char* getPrivateKey(int *lenPrivateKey);
+        bool setPrivateKey(char* privateKey, string passphrase);
 
         unsigned char* encryptData(char* data, int sizeData, int *sizeOutput);
         unsigned char* decryptData(char* data, int sizeData, int *sizeOutput);
@@ -20,6 +21,8 @@ private:
         RSA* keyPair;
         char* privateKey, *publicKey;
         int lenPrivateKey, lenPublicKey;
+
+        static int passwordCallback(char* buffer, int size, bool encrypt, void* userData);
 };
 
 #endif // !RSACrypter_H
@@ -32,7 +35,7 @@ RSACrypter::RSACrypter()
 /**
  * @brief Generates the public and private keys.
  */
-bool RSACrypter::generateKeys()
+bool RSACrypter::generateKeys(string passPhrase)
 {
         printf("[*] Generating RSA (%d bits) keypair...\n", KEY_LENGTH);
         this->keyPair = RSA_generate_key(KEY_LENGTH, 3, NULL, NULL);
@@ -48,9 +51,32 @@ bool RSACrypter::generateKeys()
 
         BIO *pri = BIO_new(BIO_s_mem());
         BIO *pub = BIO_new(BIO_s_mem());
+        if (pri == NULL || pub == NULL) {
+                printf("# Failed to generate memory BIO's for private and public keys! Error code: %d\n\n", errno);
+                return false;
+        }
 
-        PEM_write_bio_RSAPrivateKey(pri, keyPair, NULL, NULL, 0, NULL, NULL);
-        PEM_write_bio_RSAPublicKey(pub, keyPair);
+        /**
+         * @brief 
+         * Really checkout the man pages
+         * In the examples there is one which does what we want!!!
+         * 
+         * Sources:
+         * https://man.netbsd.org/SSL_CTX_set_default_passwd_cb.3
+         * https://www.openssl.org/docs/man1.1.1/man3/PEM_write_bio_RSAPrivateKey.html
+         * https://linux.die.net/man/3/pem_write_pkcs8privatekey
+         **/
+
+        // Writing private key with encryption of AES with our passphrase.
+        if (!PEM_write_bio_RSAPrivateKey(pri, keyPair, EVP_aes_256_cbc(), NULL, 0, NULL, (void*)passPhrase.c_str())) {
+                printf("# Failed to write the private key to thEVP_aes__cbce allocated memory BIO! Error code: %d\n\n", errno);
+                return false;
+        }        
+        
+        if (!PEM_write_bio_RSAPublicKey(pub, keyPair)) {
+                printf("# Failed to write the public key to the allocated memory BIO! Error code: %d\n\n", errno);
+                return false;
+        }
 
         this->lenPrivateKey = BIO_pending(pri);
         this->lenPublicKey = BIO_pending(pub);
@@ -63,10 +89,6 @@ bool RSACrypter::generateKeys()
         
         this->privateKey[this->lenPrivateKey] = '\0';
         this->publicKey[this->lenPublicKey] = '\0';
-
-        #ifdef LOG_ALL
-                printf("\n%s\n%s", this->privateKey, this->publicKey);
-        #endif
 
         return true;
 }
@@ -93,6 +115,11 @@ char* RSACrypter::getPrivateKey(int* lenPrivateKey)
 {
         *lenPrivateKey = this->lenPrivateKey;
         return this->privateKey;
+}
+
+bool RSACrypter::setPrivateKey(char* privateKey, string passphrase)
+{
+        return false;
 }
 
 unsigned char* RSACrypter::encryptData(char* data, int sizeData, int *sizeOutput)
@@ -126,4 +153,11 @@ unsigned char* RSACrypter::decryptData(char* data, int sizeData, int *sizeOutput
         }
 
         return plainText;
+}
+
+int RSACrypter::passwordCallback(char* buffer, int size, bool encrypt, void* userData)
+{        
+        strncpy(Utils::requirePassword(), (char *)userData, size);
+        buffer[size - 1] = '\0';
+        return strlen(buffer);
 }

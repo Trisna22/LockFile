@@ -6,6 +6,7 @@
 #define PATH_URANDOM                    "/dev/urandom"
 #define MIN_ITERATION                   3        
 #define MAX_READWRITE_SIZE              4069
+#define BAR_WIDTH                       70
 
 class Utils
 {
@@ -16,6 +17,8 @@ public:
         static long getFileSize(string fileName);
         static string validateSingleFile(string path);
         static bool shredFile(string fileName);
+        static char* requirePassword();
+        static void printProgressBar(float progress);
 private:
         static bool shredLoop(int fdSnitch);
         static string getAbsolutePath(string fileName);
@@ -106,6 +109,27 @@ bool Utils::shredFile(string fileName)
         close(fdSnitch);
         return true;
 }
+
+char* Utils::requirePassword() 
+{
+        char* password = getpass("Password to use: ");
+        return password;
+}
+
+void Utils::printProgressBar(float progress)
+{
+        printf(" [");
+        int pos = BAR_WIDTH * progress;
+        for (int j = 0; j < BAR_WIDTH; j++) {
+                if (j < pos) printf("=");
+                else if (j == pos) printf(">");
+                else printf(" ");
+        }
+        printf("] %f %\r", progress *100.0);
+        if (progress == 1.0)
+                printf("\n");
+}
+
 /**
  *      Private member functions.
  */

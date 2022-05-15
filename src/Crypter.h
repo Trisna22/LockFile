@@ -5,7 +5,6 @@
 #ifndef Crypter_H
 #define Crypter_H
 
-#define READ_SIZE       4096
 #define DONT_LOG_ALL
 #define SINGLE_FILE     0x01
 #define TEMP_FILE       ".crypt_tmp"
@@ -94,9 +93,6 @@ private:
         bool encryptFolder(string fileName, string password, FILE* outputFile);
         bool decryptFolder(CryptFileRead fileInfo, string folderName);
         vector<CryptFile> loopFolder(string fileName);
-
-        bool copyFileDataToFilePointer(string fileName, FILE* outputFile);
-        bool copyFileBufferToFilePointer(FILE* inputFile, unsigned long fileSize, FILE* outputFile);
 };
 
 #endif // !Crypter_H
@@ -518,7 +514,7 @@ bool Crypter::writeFileToCryptFile(string fileName, FILE* outputFile) {
 
         // Write the encrypted data to the file.
         // The data is stored in the path with .enc at the end.
-        if (!this->copyFileDataToFilePointer(fileName + ".enc", outputFile))
+        if (!Utils::copyFileDataToFilePointer(fileName + ".enc", outputFile))
                 return false;
 
         // Delete our file with our shredder.
@@ -619,6 +615,7 @@ char* Crypter::encryptFileInfoSection(string password, string fileName, unsigned
 char* Crypter::decryptFileInfoSection(string password, string fileName)
 {
         printf("Function to decrypt doesn't exists yet!\n");
+        ...
         return NULL;
 }
 
@@ -710,7 +707,7 @@ bool Crypter::decryptFile(CryptFileRead fileInfo, string fileName, FILE* inputFi
                 return false;
         }
 
-        if (!this->copyFileBufferToFilePointer(inputFile, fileSize, outputFile)) {
+        if (!Utils::copyFileBufferToFilePointer(inputFile, fileSize, outputFile)) {
 
                 printf("[-] Failed to copy the bytes to a temporary file!\n\n");
                 return false;
@@ -848,7 +845,7 @@ bool Crypter::encryptFolder(string folderName, string password, FILE* outputFile
                         printf("[*] Written encrypted data %s (%d bytes)\n", cryptFile.fileName, sizeof(cryptFile));
 
                 // Write the encrypted file to .crypt file.
-                if (!this->copyFileDataToFilePointer((string)cryptFile.fileName + ".enc", outputFile))
+                if (!Utils::copyFileDataToFilePointer((string)cryptFile.fileName + ".enc", outputFile))
                         return false;
 
                 // Delete the temporary file.
@@ -958,148 +955,3 @@ vector<Crypter::CryptFile> Crypter::loopFolder(string folderName)
         return listFolder;
 }
 
-/**
- * Writes the content of the target filename to the given output file pointer.
- * 
- * @param fileName The target file fileName.
- * @param outputFile The pointer to the file descriptor.
- */
-bool Crypter::copyFileDataToFilePointer(string fileName, FILE* outputFile)
-{
-        // Open the encrypted file.
-        FILE* inputFile = fopen(fileName.c_str(), "rb");
-        if (inputFile == NULL) {
-
-                printf("[-] Failed to open the encrypted file %s! Error code: %d\n\n", fileName.c_str(), errno);
-                return false;
-        }
-
-        /**
-         * @brief sendfile() not possible here
-         * 
-         * The problem with this bit is that we want to copy the
-         * file data to a certain offset in the output file. 
-         * sendfile() doesn't support that for the offset, so we can't
-         * use it for now.
-         */
-
-        // // To get the file size.
-        // fseek(inputFile, 0, SEEK_END);
-        // unsigned long fileSize = ftell(inputFile);
-        // rewind(inputFile);
-
-        // if (sendfile64(outputFile->_fileno, inputFile->_fileno, NULL, fileSize) == -1) {
-
-        //         printf("[-] Failed to copy the bytes to output file! Error code: %d\n\n", errno);
-        //         return false;  
-        // }
-        // return true;
-
-        // Read the content of encrypted file and write
-        // into the output file.
-        char* buffer = (char*)malloc(READ_SIZE);
-        int totalBytes = 0;
-        for (;;) {
-
-                int readSize = fread(buffer, 1, READ_SIZE, inputFile);
-                if (readSize <= 0 && errno != 0) {
-
-                        printf("[-] Failed to read buffer from input file! Error code: %d\n\n", errno);
-                        return false;
-                }
-                else if (readSize <= 0 && errno == 0)
-                        break;
-
-                // Write to output file.
-                if (fwrite(buffer, 1, readSize, outputFile) <= 0) {
-                        printf("[-] Failed to write the file data into the output file! Error code: %d\n\n", errno);
-                        return false;
-                }
-        
-                totalBytes += readSize;
-        }
-
-        // Delete the encrypted file. 
-        fclose(inputFile);
-        free(buffer);
-        return true;
-}
-
-/**
- * Copies the partial content of the input file to the output file.
- * 
- * @param inputFile The input file pointer to read the buffer from.
- * @param fileSize  The size of the buffer to read.
- * @param outputFile The pointer to the output file.
- */
-bool Crypter::copyFileBufferToFilePointer(FILE* inputFile, unsigned long fileSize, FILE* outputFile)
-{
-        // Get the offset to keep track on.
-        __off64_t currentOffset = ftell(inputFile);
-
-        if (sendfile64(outputFile->_fileno, inputFile->_fileno, &currentOffset,  fileSize) == -1) {
-                printf("[-] Failed to copy the bytes from input file! Error code: %d\n\n", errno);
-                return false;
-        }
-
-        // Adjust the offset again for the input file.
-        fseek(inputFile, currentOffset, SEEK_SET);
-        fclose(outputFile);
-
-        return true;
-
-        char* buffer = (char*)malloc(READ_SIZE);
-
-        // When the size of the file is smaller than the read size.
-        if (fileSize < READ_SIZE) {
-
-                int readSize = fread(buffer, 1, fileSize, inputFile);
-                if (readSize <= 0 && errno != 0) {
-                        printf("[-] Failed to read buffer from input file! Error code: %d\n\n", errno);
-                        return false;
-                }
-
-                if (fwrite(buffer, 1, readSize, outputFile) <= 0) {
-
-                        printf("[-] Failed to write the input data to the output file! Error code: %d\n\n", errno);
-                        return false;
-                }   
-
-                // Cleanup, WARNING: Do not close the inputFile, we still need it.
-                free(buffer);
-                fclose(outputFile);    
-                return true; 
-        }
-
-        unsigned long counter = fileSize;
-        while (counter != 0) {
-
-                // Write data to output.
-                int readSize;
-                if (counter < READ_SIZE) {
-                        readSize = fread(buffer, 1, counter, inputFile);
-                        counter -= counter;
-                }
-                else {
-                        readSize = fread(buffer, 1, READ_SIZE, inputFile);
-                        counter -= READ_SIZE;
-                }
-              
-                if (readSize <= 0) {
-
-                        printf("[-] Failed to read buffer from input file! Error code: %d\n\n", errno);
-                        return false;
-                }
-              
-                if (fwrite(buffer, 1, readSize, outputFile) <= 0) {
-
-                        printf("[-] Failed to write the input data to the output file! Error code: %d\n\n", errno);
-                        return false;
-                }
-        }
-
-        // Cleanup, WARNING: Do not close the inputFile, we still need it.
-        free(buffer);
-        fclose(outputFile);    
-        return true; 
-}

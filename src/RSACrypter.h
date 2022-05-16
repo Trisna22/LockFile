@@ -21,8 +21,6 @@ private:
         RSA* keyPair;
         char* privateKey, *publicKey;
         int lenPrivateKey, lenPublicKey;
-
-        static int passwordCallback(char* buffer, int size, bool encrypt, void* userData);
 };
 
 #endif // !RSACrypter_H
@@ -180,11 +178,4 @@ unsigned char* RSACrypter::decryptData(char* data, int sizeData, int *sizeOutput
         }
 
         return plainText;
-}
-
-int RSACrypter::passwordCallback(char* buffer, int size, bool encrypt, void* userData)
-{        
-        strncpy(Utils::requirePassword(), (char *)userData, size);
-        buffer[size - 1] = '\0';
-        return strlen(buffer);
 }

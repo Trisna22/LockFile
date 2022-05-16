@@ -49,8 +49,8 @@ int main(int argc, char*argv[]) {
                         }
                         else if ((arg == "-i" || arg == "--info") && argc == 3) {
                                 Crypter crypter;
-                                crypter.readCryptHeader(argv[2]);
-                                crypter.readCryptFiles(argv[2]);
+                                crypter.readCryptHeader(argv[2], Utils::requirePassword());
+                                crypter.readCryptFiles(argv[2], Utils::requirePassword());
                                 return 0;
                         }
                         else if ((arg == "-d" || arg == "--decrypt") && argc == 3) {

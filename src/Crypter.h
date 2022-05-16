@@ -20,8 +20,8 @@ public:
         bool createCryptFile(string target, char* password);
         bool openCryptFile(string target, char* password);
 
-        bool readCryptHeader(string target);
-        bool readCryptFiles(string target);
+        bool readCryptHeader(string target, char* password);
+        bool readCryptFiles(string target, char* password);
 	bool checkCryptFile(string fileName);
 private:
         /**
@@ -177,9 +177,9 @@ bool Crypter::openCryptFile(string target, char* password)
                 return false;
         }
 
-        printf("[*] Reading CryptHeader (%d bytes)\n", sizeof(CryptHeader));
-        CryptHeader cryptHeader;
-        int fileRead = fread(&cryptHeader, 1, sizeof(CryptHeader), inputFile);
+        printf("[*] Reading CryptHeader (%d bytes)\n", sizeof(CryptHeaderRead));
+        CryptHeaderRead cryptHeader;
+        int fileRead = fread(&cryptHeader, 1, sizeof(CryptHeaderRead), inputFile);
         if (fileRead == -1) {
 
                 printf("[-] Failed to read the crypt file! Error code: %d\n\n", errno);
@@ -191,11 +191,14 @@ bool Crypter::openCryptFile(string target, char* password)
                 return false;
         }
 
+        // Read the private key out.
+        fseek(inputFile, cryptHeader.sizePrivateKey, SEEK_CUR);
+
         // Decrypt the section with CryptFile objects.
         if (!this->decryptFileInfoSection(password, target)) {
 
                 printf("[-] Failed to decrypt the cryptfile objects, so cannot continue!\n\n");
-                return false;
+                // return false;
         }
                 
         // Save every file info object in a array.
@@ -278,7 +281,7 @@ bool Crypter::openCryptFile(string target, char* password)
  * 
  * @param target The .crypt file to read from.
  */
-bool Crypter::readCryptHeader(string target)
+bool Crypter::readCryptHeader(string target, char* password)
 {
         if (!this->checkCryptFile(target))
                 return false;
@@ -291,7 +294,6 @@ bool Crypter::readCryptHeader(string target)
         }
 
         CryptHeaderRead cryptHeader;
-        printf("Size of Header: %ld\n", sizeof(CryptHeaderRead));
         int fileRead = fread(&cryptHeader, 1, sizeof(CryptHeaderRead), inputFile);
         if (fileRead == -1) {
 
@@ -334,7 +336,7 @@ bool Crypter::readCryptHeader(string target)
  * 
  * @param target The given .crypt file to read from.
  */
-bool Crypter::readCryptFiles(string target)
+bool Crypter::readCryptFiles(string target, char* password)
 {
         if (!this->checkCryptFile(target.c_str()))
                 return false;
@@ -364,7 +366,11 @@ bool Crypter::readCryptFiles(string target)
         privateKey[cryptHeader.sizePrivateKey] = '\0';
 
         // Decrypt the file info section.
-        // this->decryptFileInfoSection(password)
+        if (!this->decryptFileInfoSection(password, target)) {
+
+                printf("[-] Failed to decrypt the section info, so quitting!\n\n");
+                return false;
+        }
 
         // Looping trough CryptFiles.
         for (int i = 0; i < cryptHeader.countFileInfos; i++) {
@@ -395,10 +401,6 @@ bool Crypter::readCryptFiles(string target)
                 printf("  File key (hex):   %s\n", Utils::convertToHex(cryptFile.fileKey, 32).c_str());
                 printf("  File IV (hex):    %s\n", Utils::convertToHex(cryptFile.fileIV, 16).c_str());
                 printf("  File hash (MD5):  %s\n\n", Utils::convertToHex(cryptFile.fileHash, 16).c_str());
-
-                // // Skip over the file. (That is our encrypted content)
-                // char bufferData[cryptFile.sizeFileData];
-                // fread(bufferData, 1, cryptFile.sizeFileData, inputFile);
         }
 
         fclose(inputFile);

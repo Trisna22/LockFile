@@ -192,8 +192,11 @@ bool Crypter::openCryptFile(string target, char* password)
         }
 
         // Decrypt the section with CryptFile objects.
-        if (!this->decryptFileInfoSection(password, target))
-                 return false;
+        if (!this->decryptFileInfoSection(password, target)) {
+
+                printf("[-] Failed to decrypt the cryptfile objects, so cannot continue!\n\n");
+                return false;
+        }
                 
         // Save every file info object in a array.
         printf("[*] About to read %d CryptFile objects\n", cryptHeader.countFileInfos);
@@ -612,10 +615,35 @@ char* Crypter::encryptFileInfoSection(string password, string fileName, unsigned
         return NULL;
 }
 
+// TODO: Finish this function.
 char* Crypter::decryptFileInfoSection(string password, string fileName)
 {
-        printf("Function to decrypt doesn't exists yet!\n");
-        ...
+        FILE* readPointer = fopen(fileName.c_str(), "rb");
+        if (readPointer == NULL) {
+                printf("# Failed to open the crypt file to decrypt the section headers! Error code: %d\n\n", errno);
+                return NULL;
+        }
+
+        CryptHeader cryptHeader;
+        int bytesRed = fread(&cryptHeader, 1, sizeof(CryptHeader), readPointer);
+        if (bytesRed <= 0) {
+                printf("# Invalid crypt file, cannot read CryptHeader!\n\n");
+                return NULL;
+        }
+
+        // Now read the bit with the private key.
+        char* privateKey = (char*)malloc(cryptHeader.sizePrivateKey);
+        bytesRed = fread(privateKey, 1, cryptHeader.sizePrivateKey, readPointer);
+        if (bytesRed <= 0) {
+                printf("# Invalid crypt file, cannot read private key! Error code: %d\n\n", errno);
+                return NULL;
+        }
+
+        // Feed the RSACrypter our private key.
+        if (!rsaCrypter.setPrivateKey(privateKey, cryptHeader.sizePrivateKey, password)) {
+                return NULL;
+        }
+
         return NULL;
 }
 

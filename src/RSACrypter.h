@@ -13,7 +13,7 @@ public:
         bool generateKeys(string passphrase);
         char* getPublicKey(int *lenPublicKey);
         char* getPrivateKey(int *lenPrivateKey);
-        bool setPrivateKey(char* privateKey, string passphrase);
+        bool setPrivateKey(char* privateKey, unsigned int sizeKey, string passphrase);
 
         unsigned char* encryptData(char* data, int sizeData, int *sizeOutput);
         unsigned char* decryptData(char* data, int sizeData, int *sizeOutput);
@@ -117,9 +117,36 @@ char* RSACrypter::getPrivateKey(int* lenPrivateKey)
         return this->privateKey;
 }
 
-bool RSACrypter::setPrivateKey(char* privateKey, string passphrase)
+// TODO: Finish this function.
+bool RSACrypter::setPrivateKey(char* privateKey, unsigned int sizeKey, string passphrase)
 {
-        return false;
+        BIO *pri = BIO_new_mem_buf(privateKey, sizeKey);
+        if (pri == NULL) {
+                printf("# Failed to generate memory BIO's for private and public keys!\n");
+                ERR_load_crypto_strings();
+                char* err;
+                ERR_error_string(ERR_get_error(), err);
+                printf("%s\n", err);
+                return false;
+        }
+
+        this->keyPair = PEM_read_bio_RSAPrivateKey(pri, NULL, NULL, (void*)passphrase.c_str());
+        if (this->keyPair == NULL) {
+
+                if (ERR_get_error() == 101077092) {
+                        printf("# Failed to load the private key! Wrong passphrase!\n\n");
+                        return false;
+                }
+
+                printf("# Failed to read the BIO to our RSA keypair object! Error code: %ld\n");
+                ERR_load_crypto_strings();
+                char* err;
+                ERR_error_string(ERR_get_error(), err);
+                printf("%s\n", err);
+                return false;
+        }
+
+        return true;
 }
 
 unsigned char* RSACrypter::encryptData(char* data, int sizeData, int *sizeOutput)

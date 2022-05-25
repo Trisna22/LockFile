@@ -48,18 +48,19 @@ int main(int argc, char*argv[]) {
                                 return 0;
                         }
                         else if ((arg == "-i" || arg == "--info") && argc == 3) {
-                                Crypter crypter;
-                                crypter.readCryptHeader(argv[2], Utils::requirePassword());
-                                crypter.readCryptFiles(argv[2], Utils::requirePassword());
+
+                                char* passPhrase = Utils::requirePassword();
+                                crypter.readCryptHeader(argv[2], passPhrase);
+                                crypter.readCryptFiles(argv[2], passPhrase);
                                 return 0;
                         }
                         else if ((arg == "-d" || arg == "--decrypt") && argc == 3) {
-                                Crypter crypter;
+
                                 crypter.openCryptFile(argv[2], Utils::requirePassword());
                                 return 0;
                         }
                         else if ((arg == "-c" || arg == "--check") && argc == 3) {
-                                Crypter crypter;
+
                                 if (crypter.checkCryptFile(argv[2])) {
 
                                         printf("[!] Valid .crypt file!\n");

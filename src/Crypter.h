@@ -328,6 +328,7 @@ bool Crypter::readCryptHeader(string target, char* password)
         printf("CryptHeader\n");
         printf("  Magic:                        %s\n", cryptHeader.magic);
         printf("  Size priv key:                %ld\n", cryptHeader.sizeCryptFiles);
+        printf("  Size CryptFile section:       %ld\n", cryptHeader.sizeCryptFiles);
         printf("  Count file CryptFile objects: %d\n", cryptHeader.countFileInfos);
         printf("  Encrypted private key:        \n\n%s\n", privateKey);
         return true;
@@ -368,31 +369,25 @@ bool Crypter::readCryptFiles(string target, char* password)
         fread(&privateKey, 1, cryptHeader.sizePrivateKey + 1, inputFile);
         privateKey[cryptHeader.sizePrivateKey] = '\0';
 
-        // Decrypt the file info section.
-        if (!this->decryptFileInfoSection(password, target)) {
+        // Decrypt the section with CryptFile objects.
+        char* cryptFileBuffer = this->decryptFileInfoSection(password, target);
+        if (cryptFileBuffer == NULL) {
 
-                printf("[-] Failed to decrypt the section info, so quitting!\n\n");
+                printf("[-] Failed to decrypt the cryptfile objects, so cannot continue!\n\n");
                 return false;
         }
 
         // Looping trough CryptFiles.
+        unsigned long bufferLocationPointer = 0;
         for (int i = 0; i < cryptHeader.countFileInfos; i++) {
 
                 CryptFileRead cryptFile;
-                fileRead = fread(&cryptFile, 1, sizeof(CryptFileRead), inputFile);
-                if (fileRead == -1) {
+                memcpy(&cryptFile, cryptFileBuffer + bufferLocationPointer, sizeof(CryptFile));
+                bufferLocationPointer += sizeof(CryptFile);
 
-                        printf("[-] Failed to read the buffer for CryptFile[%d]! Error code: %d\n\n", i, errno);
-                        return false;
-                }
-                else if (fileRead == 0) {
-                        
-                        printf("[-] Structure empty! Invalid count of file infos!\n\n");
-                        return false;
-                }
-
+                // Get the filename from buffer.
                 char fileNameBuffer[cryptFile.fileNameLen];
-                fread(&fileNameBuffer, 1, cryptFile.fileNameLen, inputFile);
+                memcpy(fileNameBuffer, cryptFileBuffer + bufferLocationPointer, cryptFile.fileNameLen);
                 fileNameBuffer[cryptFile.fileNameLen] = '\0';
 
                 // Print out the file info.
@@ -404,6 +399,8 @@ bool Crypter::readCryptFiles(string target, char* password)
                 printf("  File key (hex):   %s\n", Utils::convertToHex(cryptFile.fileKey, 32).c_str());
                 printf("  File IV (hex):    %s\n", Utils::convertToHex(cryptFile.fileIV, 16).c_str());
                 printf("  File hash (MD5):  %s\n\n", Utils::convertToHex(cryptFile.fileHash, 16).c_str());
+
+                bufferLocationPointer += cryptFile.fileNameLen;
         }
 
         fclose(inputFile);
@@ -629,11 +626,6 @@ char* Crypter::encryptFileInfoSection(string fileName, unsigned long *sizeCryptF
         if (*sizeCryptFiles % MAX_ENCRYPT_SIZE != 0)
                 totalEncryptedSize += RSA_OUTPUT_SIZE;
         
-        // For debugging.
-        // printf("Eventuall encrypted buffer size will be %ld\n", totalEncryptedSize);
-        // printf("Max RSA input size: %d\n", rsaCrypter.getRSAMaxBufferSize());
-        // printf("Size of input: %ld\n", *sizeCryptFiles);
-
         unsigned long counter = 0;
         char* toEncryptBuffer = (char*)malloc(MAX_ENCRYPT_SIZE);
         char* totalEncryptedBuffer = (char*)malloc(totalEncryptedSize);
@@ -643,10 +635,6 @@ char* Crypter::encryptFileInfoSection(string fileName, unsigned long *sizeCryptF
 
                 // Read out CryptFile buffer of max size that our RSA crypter can handle.
                 int bytesRead = fread(toEncryptBuffer, 1, MAX_ENCRYPT_SIZE, readPointer);
-                
-                // For debugging.
-                // printf("To encrypt:\n");
-                // Utils::hexdump(toEncryptBuffer, bytesRead);
 
                 // Encrypt our input buffer.
                 int outputSize;
@@ -662,12 +650,6 @@ char* Crypter::encryptFileInfoSection(string fileName, unsigned long *sizeCryptF
                 
                 counter += bytesRead; // Update the counter for position of reading.
                 testEventualSize += outputSize;
-                
-                // For debugging.
-                // printf("Encrypted:\n");
-                // Utils::hexdump(encryptedBuffer, outputSize);
-                // printf("counter: %ld\n\n", counter);
-                // getchar();
         }
         free(toEncryptBuffer);
 
@@ -678,9 +660,6 @@ char* Crypter::encryptFileInfoSection(string fileName, unsigned long *sizeCryptF
                 Utils::shredFile(TEMP_FILE);
                 return NULL;
         }
-
-        // For debugging.
-        // printf("Total encrypted buffer size: %ld\n", totalEncryptedSize);
 
         *sizeCryptFiles = totalEncryptedSize;
         Utils::shredFile(TEMP_FILE); // Delete our tmp file.
@@ -716,10 +695,6 @@ char* Crypter::decryptFileInfoSection(string password, string fileName)
                 return NULL;
         }
 
-        // For debugging.
-        // printf("Private key: \n\n%s\n", privateKey);
-        // printf("Size encrypted CryptFile objects: %ld\n", cryptHeader.sizeCryptFiles);
-
         // Calculate the count of decryption cycles.
         int MAX_DECRYPT_SIZE = rsaCrypter.getRSAMaxBufferSize();
         char* decryptedCryptFiles = (char*)malloc(MAX_DECRYPT_SIZE * (cryptHeader.sizeCryptFiles / RSA_OUTPUT_SIZE));
@@ -732,10 +707,6 @@ char* Crypter::decryptFileInfoSection(string password, string fileName)
 
                 fread(toDecryptBuffer, 1, RSA_OUTPUT_SIZE, readPointer);
 
-                // For debugging.
-                // printf("To decrypt:\n");
-                // Utils::hexdump(toDecryptBuffer, RSA_OUTPUT_SIZE);
-
                 // Decrypt the input buffer.
                 int outputSize;
                 unsigned char* decryptedBuffer = rsaCrypter.decryptData(toDecryptBuffer, RSA_OUTPUT_SIZE, &outputSize);
@@ -744,23 +715,12 @@ char* Crypter::decryptFileInfoSection(string password, string fileName)
                         return NULL;
                 }
 
-                // For debugging.
-                // printf("Decrypted:\n");
-                // Utils::hexdump(decryptedBuffer, MAX_DECRYPT_SIZE);
-                // printf("Decrypted %d bytes\n", outputSize);
-                // printf("Counter: %ld\n", counter);
-                // getchar();
-
                 memcpy(decryptedCryptFiles + testEventualSize, decryptedBuffer, outputSize);
                 counter += RSA_OUTPUT_SIZE;
                 testEventualSize += outputSize;
         }
 
         free(toDecryptBuffer);
-
-        // For debugging.
-        // Utils::hexdump(decryptedCryptFiles, testEventualSize);
-        // printf("Eventual size when all is decrypted: %ld\n", testEventualSize);
 
         return decryptedCryptFiles;
 }

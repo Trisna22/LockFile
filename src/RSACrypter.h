@@ -159,7 +159,7 @@ bool RSACrypter::setPrivateKey(char* privateKey, unsigned int sizeKey, string pa
 unsigned char* RSACrypter::encryptData(char* data, int sizeData, int *sizeOutput)
 {
         unsigned char* cipherOutput = (unsigned char*)malloc(RSA_size(this->keyPair));
-        Utils::hexdump(data, sizeData);
+        memset(cipherOutput, 0, sizeData); // Zero out the heap buffer.
 
         if ((*sizeOutput = RSA_public_encrypt(sizeData, (unsigned char*)data, cipherOutput,
                 this->keyPair, RSA_PKCS1_OAEP_PADDING)) == -1) {
@@ -177,7 +177,7 @@ unsigned char* RSACrypter::encryptData(char* data, int sizeData, int *sizeOutput
 unsigned char* RSACrypter::decryptData(char* data, int sizeData, int *sizeOutput)
 {
         unsigned char* plainText = (unsigned char*)malloc(sizeData);
-        memset(plainText, 0, sizeData);
+        memset(plainText, 0, sizeData); // Zero out the heap buffer.
 
         // First cast data to unsigned char.
         unsigned char* bytesToDecrypt = reinterpret_cast<unsigned char*>(data);

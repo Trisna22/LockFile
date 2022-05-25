@@ -11,7 +11,7 @@ BUILD_FOLDER=./build
 default:
 	mkdir -p ./build/
 	mkdir -p ./src/
-	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) -ggdb3 --no-warnings -lcrypto
+	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
 
 encrypt:
 	find -name *.enc -type f -delete

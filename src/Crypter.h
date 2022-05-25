@@ -116,6 +116,8 @@ Crypter::~Crypter()
  */
 bool Crypter::createCryptFile(string target, char* password)
 {
+        target = Utils::setFolderNaming(target);
+
         printf("\n[[[  Encrypt stage  ]]]\n\n");
         // Check if target is even a folder or file.
         struct stat s;

@@ -23,6 +23,7 @@ public:
         static bool copyFileDataToFilePointer(string fileName, FILE* outputFile);
         static bool copyFileBufferToFilePointer(FILE* inputFile, unsigned long fileSize, FILE* outputFile);
         static void hexdump(void*ptr, int size);
+        static string setFolderNaming(string target);
 private:
         static bool shredLoop(int fdSnitch);
         static string getAbsolutePath(string fileName);
@@ -304,6 +305,23 @@ void Utils::hexdump(void *ptr, int buflen) {
                                 printf("%c", isprint(buf[i+j]) ? buf[i+j] : '.');
                 printf("\n");
         }
+}
+
+string Utils::setFolderNaming(string target) {
+        
+        struct stat fstat;
+        stat(target.c_str(), &fstat);
+
+        // If it is a folder.
+        if (S_ISDIR(fstat.st_mode)) {
+
+                // Check if it has a trailing end-slash.
+                if (target[target.length() -1] == '/') {
+                        target = target.substr(0, target.length() -1);
+                }
+        }
+
+        return target;
 }
 
 

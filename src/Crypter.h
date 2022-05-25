@@ -82,7 +82,7 @@ private:
         bool writeFileToCryptFile(string fileName, FILE* outputFile);
 
         // Info section encryption/decryption.0:16 / 3:01
-        char* encryptFileInfoSection(string password, string fileName, unsigned long sizeCryptFiles);
+        char* encryptFileInfoSection(string fileName, unsigned long* sizeCryptFiles);
         char* decryptFileInfoSection(string password, string fileName);
 
         // File encryption/decryption.
@@ -116,6 +116,7 @@ Crypter::~Crypter()
  */
 bool Crypter::createCryptFile(string target, char* password)
 {
+        printf("\n[[[  Encrypt stage  ]]]\n\n");
         // Check if target is even a folder or file.
         struct stat s;
         if (stat(target.c_str(), &s) == -1) {
@@ -195,49 +196,47 @@ bool Crypter::openCryptFile(string target, char* password)
         fseek(inputFile, cryptHeader.sizePrivateKey, SEEK_CUR);
 
         // Decrypt the section with CryptFile objects.
-        if (!this->decryptFileInfoSection(password, target)) {
+        char* cryptFileBuffer = this->decryptFileInfoSection(password, target);
+        if (cryptFileBuffer == NULL) {
 
                 printf("[-] Failed to decrypt the cryptfile objects, so cannot continue!\n\n");
-                // return false;
+                return false;
         }
                 
         // Save every file info object in a array.
         printf("[*] About to read %d CryptFile objects\n", cryptHeader.countFileInfos);
 
+        // Set our file pointer to the start of the file data.
+        fseek(inputFile, cryptHeader.sizeCryptFiles, SEEK_CUR);
+
         vector<CryptFileRead> cryptFiles;
         vector<string> fileNames;
+        unsigned long bufferLocationPointer = 0;
         for (int i = 0; i < cryptHeader.countFileInfos; i++) {
 
-                // Decrypt every file/folder in this file.
                 CryptFileRead cryptFile;
-                fileRead = fread(&cryptFile, 1, sizeof(CryptFile), inputFile);
-                if (fileRead == -1) {
+                memcpy(&cryptFile, cryptFileBuffer + bufferLocationPointer, sizeof(CryptFile));
+                bufferLocationPointer += sizeof(CryptFile);
 
-                        printf("[-] Failed to read the buffer for CryptFile[%d]! Error code: %d\n\n", i, errno);
-                        return false;
-                }
-                else if (fileRead == 0) {
-                        
-                        printf("[-] Structure empty! Invalid count of file infos!\n\n");
-                        return false;
-                }
-                
+                // Get the filename from buffer.
                 char fileNameBuffer[cryptFile.fileNameLen];
-                fread(&fileNameBuffer, 1, cryptFile.fileNameLen, inputFile);
+                memcpy(fileNameBuffer, cryptFileBuffer + bufferLocationPointer, cryptFile.fileNameLen);
                 fileNameBuffer[cryptFile.fileNameLen] = '\0';
-                
-                fileNames.push_back(fileNameBuffer);
+
+                bufferLocationPointer += cryptFile.fileNameLen;
                 cryptFiles.push_back(cryptFile);
+                fileNames.push_back(fileNameBuffer);
         }
 
         printf("[*] Decrypting file data and writing to drive\n");
         bool progressBar = cryptHeader.countFileInfos > 10;
-        float progress = 0.0;
+        float progress = 0.0;        
 
         for (int i = 0; i < cryptFiles.size(); i++) {
 
                 CryptFileRead cryptFile = cryptFiles.at(i);
                 string fileName = fileNames.at(i);
+
 
                 if (progressBar) {
                         Utils::printProgressBar(progress);
@@ -254,6 +253,8 @@ bool Crypter::openCryptFile(string target, char* password)
                 if (!progressBar)
                         printf("[*] Decrypting file %s\n", fileName.c_str());
 
+                // Something goes wrong heree
+                // AES gives an error.
                 if (!this->decryptFile(cryptFile, fileName, inputFile)) {
 
                         printf("Failed to decrypt file number %d with filename %s!\n\n", i, fileName.c_str());
@@ -601,20 +602,87 @@ bool Crypter::md5SumFile(string fileName, unsigned char* fileHash)
         return true;
 }
 
-char* Crypter::encryptFileInfoSection(string password, string fileName, unsigned long sizeCryptFiles)
+// TODO: Finish this function
+char* Crypter::encryptFileInfoSection(string fileName, unsigned long *sizeCryptFiles)
 {
-        FILE* writePointer = fopen(fileName.c_str(), "wb+");
+        // Read the file and use this as the input for the RSA crypter.
+        FILE* writePointer = fopen(TEMP_FILE, "wb");
         if (writePointer == NULL) {
                 printf("# Failed to open file to encrypt section headers! Error code: %d\n\n", errno);
                 return NULL;
         }
 
-        // Skip the bytes over the magic header.
-        fseek(writePointer, sizeof(CryptHeader), SEEK_SET);
-        printf("Location of write pointer for section header ecnrypt: %ld\n", ftell(writePointer));
+        FILE* readPointer = fopen(fileName.c_str(), "rb");
+        if (readPointer == NULL) {
+                printf("# Failed to encrypt the section headers, CryptFiles not written! Error code: %d\n\n", errno);
+                Utils::shredFile(TEMP_FILE);
+                return NULL;
+        }
 
-        // rsaCrypter.encryptData();
-        return NULL;
+        // Calculate how big the buffer eventually will be.
+        int MAX_ENCRYPT_SIZE = rsaCrypter.getRSAMaxBufferSize();
+        unsigned long totalEncryptedSize = (*sizeCryptFiles / MAX_ENCRYPT_SIZE) * RSA_OUTPUT_SIZE;
+
+        // Check if we have rest.
+        if (*sizeCryptFiles % MAX_ENCRYPT_SIZE != 0)
+                totalEncryptedSize += RSA_OUTPUT_SIZE;
+        
+        // For debugging.
+        // printf("Eventuall encrypted buffer size will be %ld\n", totalEncryptedSize);
+        // printf("Max RSA input size: %d\n", rsaCrypter.getRSAMaxBufferSize());
+        // printf("Size of input: %ld\n", *sizeCryptFiles);
+
+        unsigned long counter = 0;
+        char* toEncryptBuffer = (char*)malloc(MAX_ENCRYPT_SIZE);
+        char* totalEncryptedBuffer = (char*)malloc(totalEncryptedSize);
+        unsigned long testEventualSize = 0; // For testing if the encryption worked.
+
+        while (counter < *sizeCryptFiles) {
+
+                // Read out CryptFile buffer of max size that our RSA crypter can handle.
+                int bytesRead = fread(toEncryptBuffer, 1, MAX_ENCRYPT_SIZE, readPointer);
+                
+                // For debugging.
+                // printf("To encrypt:\n");
+                // Utils::hexdump(toEncryptBuffer, bytesRead);
+
+                // Encrypt our input buffer.
+                int outputSize;
+                unsigned char* encryptedBuffer = rsaCrypter.encryptData(toEncryptBuffer, bytesRead, &outputSize);
+                if (encryptedBuffer == NULL) {
+                        printf("# Encrypting sections failed! Encrypt function returned 0 bytes!\n");
+                        Utils::shredFile(TEMP_FILE);
+                        return NULL;
+                }
+
+                // Copy the encrypted bytes position independent to our buffer in memory.
+                memcpy(totalEncryptedBuffer + testEventualSize, encryptedBuffer, outputSize);
+                
+                counter += bytesRead; // Update the counter for position of reading.
+                testEventualSize += outputSize;
+                
+                // For debugging.
+                // printf("Encrypted:\n");
+                // Utils::hexdump(encryptedBuffer, outputSize);
+                // printf("counter: %ld\n\n", counter);
+                // getchar();
+        }
+        free(toEncryptBuffer);
+
+        // Check if the encrypted buffer size is equal to the expected buffer size.
+        if (testEventualSize != totalEncryptedSize) {
+                printf("# Encrypting sections failed! The output size is not what we expected!\n\n");
+                printf("%ld !== %ld\n", testEventualSize, totalEncryptedSize);
+                Utils::shredFile(TEMP_FILE);
+                return NULL;
+        }
+
+        // For debugging.
+        // printf("Total encrypted buffer size: %ld\n", totalEncryptedSize);
+
+        *sizeCryptFiles = totalEncryptedSize;
+        Utils::shredFile(TEMP_FILE); // Delete our tmp file.
+        return totalEncryptedBuffer;
 }
 
 // TODO: Finish this function.
@@ -626,8 +694,8 @@ char* Crypter::decryptFileInfoSection(string password, string fileName)
                 return NULL;
         }
 
-        CryptHeader cryptHeader;
-        int bytesRed = fread(&cryptHeader, 1, sizeof(CryptHeader), readPointer);
+        CryptHeaderRead cryptHeader;
+        int bytesRed = fread(&cryptHeader, 1, sizeof(CryptHeaderRead), readPointer);
         if (bytesRed <= 0) {
                 printf("# Invalid crypt file, cannot read CryptHeader!\n\n");
                 return NULL;
@@ -646,7 +714,53 @@ char* Crypter::decryptFileInfoSection(string password, string fileName)
                 return NULL;
         }
 
-        return NULL;
+        // For debugging.
+        // printf("Private key: \n\n%s\n", privateKey);
+        // printf("Size encrypted CryptFile objects: %ld\n", cryptHeader.sizeCryptFiles);
+
+        // Calculate the count of decryption cycles.
+        int MAX_DECRYPT_SIZE = rsaCrypter.getRSAMaxBufferSize();
+        char* decryptedCryptFiles = (char*)malloc(MAX_DECRYPT_SIZE * (cryptHeader.sizeCryptFiles / RSA_OUTPUT_SIZE));
+
+        // Now that everything is calculated, read the data.
+        char* toDecryptBuffer = (char*)malloc(RSA_OUTPUT_SIZE);
+
+        unsigned long counter = 0, testEventualSize = 0;
+        while (counter < cryptHeader.sizeCryptFiles) {
+
+                fread(toDecryptBuffer, 1, RSA_OUTPUT_SIZE, readPointer);
+
+                // For debugging.
+                // printf("To decrypt:\n");
+                // Utils::hexdump(toDecryptBuffer, RSA_OUTPUT_SIZE);
+
+                // Decrypt the input buffer.
+                int outputSize;
+                unsigned char* decryptedBuffer = rsaCrypter.decryptData(toDecryptBuffer, RSA_OUTPUT_SIZE, &outputSize);
+                if (decryptedBuffer == NULL) {
+                        printf("# Decrypting sections failed! Decrypt function returned 0 bytes!\n");
+                        return NULL;
+                }
+
+                // For debugging.
+                // printf("Decrypted:\n");
+                // Utils::hexdump(decryptedBuffer, MAX_DECRYPT_SIZE);
+                // printf("Decrypted %d bytes\n", outputSize);
+                // printf("Counter: %ld\n", counter);
+                // getchar();
+
+                memcpy(decryptedCryptFiles + testEventualSize, decryptedBuffer, outputSize);
+                counter += RSA_OUTPUT_SIZE;
+                testEventualSize += outputSize;
+        }
+
+        free(toDecryptBuffer);
+
+        // For debugging.
+        // Utils::hexdump(decryptedCryptFiles, testEventualSize);
+        // printf("Eventual size when all is decrypted: %ld\n", testEventualSize);
+
+        return decryptedCryptFiles;
 }
 
 /**
@@ -754,14 +868,6 @@ bool Crypter::decryptFile(CryptFileRead fileInfo, string fileName, FILE* inputFi
 
         this->aesCrypter.setIv2(fileInfo.fileIV);
 
-        // printf("CryptFile\n");
-        // printf("  Filename:         %s\n", fileInfo.fileName);
-        // printf("  isFolder:         %s\n", fileInfo.isFolder ? "True" : "False");
-        // printf("  Enc. data size:   %ld\n", fileInfo.sizeFileData);
-        // printf("  File key (hex):   %s\n", Utils::convertToHex(fileInfo.fileKey, 32).c_str());
-        // printf("  File IV (hex):    %s\n", Utils::convertToHex(fileInfo.fileIV, 16).c_str());
-        // printf("  File hash (MD5):  %s\n\n", Utils::convertToHex(fileInfo.fileHash, 16).c_str());
-
         // Set the key and IV and start decrypting.
         fileInfo.fileKey[AES_256_KEY_SIZE] = '\0'; // For string termination.
         if (!this->aesCrypter.setKey(fileInfo.fileKey, AES_256_KEY_SIZE, // The key of the file.
@@ -791,7 +897,6 @@ bool Crypter::decryptFile(CryptFileRead fileInfo, string fileName, FILE* inputFi
                 return false;
         }
 
-
         if (Utils::convertToHex(hashCheck, 16) != Utils::convertToHex(fileInfo.fileHash, 16)) {
                 
                 printf("[!] Invalid hash, crypt file has been altered and is now corrupted!\n\n");
@@ -812,6 +917,11 @@ bool Crypter::encryptFolder(string folderName, string password, FILE* outputFile
         printf("[*] Scanning %s and encrypting data...\n", folderName.c_str());
         vector<CryptFile> folderList = this->loopFolder(folderName);
 
+        /**
+         * @brief 
+         * This the calculate stage, the part where we are encrypting and saving data. 
+         **/
+
         // Generate the crypt header structure.
         CryptHeader cryptHeader = this->generateCryptHeader();
         cryptHeader.countFileInfos = folderList.size();
@@ -829,15 +939,8 @@ bool Crypter::encryptFolder(string folderName, string password, FILE* outputFile
         }
         cryptHeader.sizeCryptFiles = sizeCryptFiles;
         
-        // Write the header to the file.
-        fwrite(&cryptHeader, 1, sizeof(cryptHeader), outputFile);
-        printf("[*] Written CryptHeader (%d bytes)\n", sizeof(cryptHeader));
-        fwrite(privateKey, 1, sizePrivateKey, outputFile);
-        printf("[*] Written encrypted private key (%d bytes)\n", sizePrivateKey);
-
         // Write all the crypt file objects.
         printf("[*] About to write %d CryptFile objects\n", folderList.size());
-        printf("[*] Generating keys and encrypting file data\n");
 
         bool progressBar = folderList.size() > 10;
         for (int i = 0; i < folderList.size(); i++) {
@@ -846,17 +949,47 @@ bool Crypter::encryptFolder(string folderName, string password, FILE* outputFile
                 fwrite(&cryptFile, 1, sizeof(cryptFile), outputFile);
 
                 if (!progressBar)
-                        printf("[*] Written cryptfile %s (%d bytes)\n", cryptFile.fileName, sizeof(cryptFile));
+                        printf("[*] Generating CryptFile for %s (%d bytes)\n", cryptFile.fileName, sizeof(cryptFile));
 
                 // Write the filename seperately.
                 fwrite(cryptFile.fileName, 1, cryptFile.fileNameLen, outputFile);
         }
 
-        printf("[*] Writing encrypted file data to the end of the CryptFile!\n");
         // Progress bar. (if possible)
         float progress = 0.0;
 
+        // Encrypt the file info section. (CryptFiles)
+        fclose(outputFile);
+
+        char* encryptedFileSections = this->encryptFileInfoSection(folderName + CRYPT_EXTENSION, &sizeCryptFiles);
+        if (!encryptedFileSections) {
+                return false;
+        }
+
+        /**
+         * @brief 
+         * This is the write stage, where we write everything to the file.
+         */
+        printf("\n[[[  Write stage  ]]] \n\n");
+
+        outputFile = fopen((folderName + CRYPT_EXTENSION).c_str(), "wb");
+
+        // Write the header to the file.
+        cryptHeader.sizeCryptFiles = sizeCryptFiles; // Update size after encrypt.
+        fwrite(&cryptHeader, 1, sizeof(cryptHeader), outputFile);
+        printf("[*] Written CryptHeader (%d bytes)\n", sizeof(cryptHeader));
+
+        // Write the private key to file.
+        fwrite(privateKey, 1, sizePrivateKey, outputFile);
+        printf("[*] Written encrypted private key (%d bytes)\n", sizePrivateKey);
+
+        // Write the encrypted sections.
+        printf("[*] Writing encrypted section headers (%ld bytes)\n", sizeCryptFiles);
+        fwrite(encryptedFileSections, 1, sizeCryptFiles, outputFile);
+        free(encryptedFileSections); // Don't forget to free.
+
         // Write the encrypted file data at the end.
+        printf("[*] Writing encrypted file data to the end of the CryptFile!\n");
         for (int i = 0; i < folderList.size(); i++) {
 
                 CryptFile cryptFile = folderList.at(i);
@@ -890,11 +1023,6 @@ bool Crypter::encryptFolder(string folderName, string password, FILE* outputFile
 
         if (progressBar)
                 Utils::printProgressBar(1);
-
-        // Encrypt the file info section. (CryptFile)
-        // if (!this->encryptFileInfoSection(password, folderName + CRYPT_EXTENSION, sizeCryptFiles)) {
-
-        // }
         
         fclose(outputFile);
         printf("\n[!] Locking finished!\n\n");

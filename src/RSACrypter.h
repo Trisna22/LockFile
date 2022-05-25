@@ -4,6 +4,7 @@
 #define RSACrypter_H
 
 #define KEY_LENGTH              2048
+#define RSA_OUTPUT_SIZE         256
 
 #define LOG_ALL
 
@@ -17,6 +18,8 @@ public:
 
         unsigned char* encryptData(char* data, int sizeData, int *sizeOutput);
         unsigned char* decryptData(char* data, int sizeData, int *sizeOutput);
+
+        int getRSAMaxBufferSize();
 private:
         RSA* keyPair;
         char* privateKey, *publicKey;
@@ -115,12 +118,12 @@ char* RSACrypter::getPrivateKey(int* lenPrivateKey)
         return this->privateKey;
 }
 
-// TODO: Finish this function.
 bool RSACrypter::setPrivateKey(char* privateKey, unsigned int sizeKey, string passphrase)
 {
-        BIO *pri = BIO_new_mem_buf(privateKey, sizeKey);
+        BIO *pri = BIO_new(BIO_s_mem());
+        BIO_write(pri, privateKey, sizeKey);
         if (pri == NULL) {
-                printf("# Failed to generate memory BIO's for private and public keys!\n");
+                printf("# Failed to generate memory BIO's for private key!\n");
                 ERR_load_crypto_strings();
                 char* err;
                 ERR_error_string(ERR_get_error(), err);
@@ -144,15 +147,22 @@ bool RSACrypter::setPrivateKey(char* privateKey, unsigned int sizeKey, string pa
                 return false;
         }
 
+        if (!RSA_check_key(this->keyPair)) {
+
+                printf("# Failed to load the key, invalid key format!\n\n");
+                return false;
+        }
+
         return true;
 }
 
 unsigned char* RSACrypter::encryptData(char* data, int sizeData, int *sizeOutput)
 {
         unsigned char* cipherOutput = (unsigned char*)malloc(RSA_size(this->keyPair));
+        Utils::hexdump(data, sizeData);
 
-        if ((*sizeOutput = RSA_public_encrypt(strlen(data) + 1, (unsigned char*)data, cipherOutput,
-                keyPair, RSA_PKCS1_OAEP_PADDING)) == -1) {
+        if ((*sizeOutput = RSA_public_encrypt(sizeData, (unsigned char*)data, cipherOutput,
+                this->keyPair, RSA_PKCS1_OAEP_PADDING)) == -1) {
                 
                 char* err = (char*)malloc(130);
                 ERR_load_crypto_strings();
@@ -167,8 +177,13 @@ unsigned char* RSACrypter::encryptData(char* data, int sizeData, int *sizeOutput
 unsigned char* RSACrypter::decryptData(char* data, int sizeData, int *sizeOutput)
 {
         unsigned char* plainText = (unsigned char*)malloc(sizeData);
-        if ((*sizeOutput = RSA_private_decrypt(sizeData, (unsigned char*)data, plainText, 
-                keyPair, RSA_PKCS1_OAEP_PADDING)) == -1) {
+        memset(plainText, 0, sizeData);
+
+        // First cast data to unsigned char.
+        unsigned char* bytesToDecrypt = reinterpret_cast<unsigned char*>(data);
+
+        if ((*sizeOutput = RSA_private_decrypt(sizeData, bytesToDecrypt, plainText, 
+                this->keyPair, RSA_PKCS1_OAEP_PADDING)) == -1) {
                 
                 char* err = (char*)malloc(130);
                 ERR_load_crypto_strings();
@@ -178,4 +193,9 @@ unsigned char* RSACrypter::decryptData(char* data, int sizeData, int *sizeOutput
         }
 
         return plainText;
+}
+
+int RSACrypter::getRSAMaxBufferSize() 
+{
+        return RSA_size(this->keyPair) -41 /* 41 for padding */ -1; // -1 for string termination.
 }

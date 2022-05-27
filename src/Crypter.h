@@ -495,27 +495,60 @@ Crypter::CryptFile Crypter::generateCryptFolder(string folderName)
  **/
 bool Crypter::writeFileToCryptFile(string fileName, FILE* outputFile) {
                 
+        /**
+         * @brief 
+         * This is the encrypt stage.
+         */
+
         CryptFile cryptFile = this->encryptFile(fileName);
         if (cryptFile.sizeFileData == 0) return false;
         
+        // Generate CryptHeader.
         CryptHeader cryptHeader = this->generateCryptHeader();
         cryptHeader.countFileInfos = SINGLE_FILE;
-        cryptHeader.sizeCryptFiles = sizeof(cryptFile); // The size to decrypt.
-        
-        // Write the encrypted private key to the header. 
+        cryptHeader.sizeCryptFiles = sizeof(cryptFile) + fileName.length(); // The size to decrypt.
+
+        // Generate private key.
         int sizePrivateKey;
         char* privateKey = rsaCrypter.getPrivateKey(&sizePrivateKey);
         privateKey[sizePrivateKey] = '\0';
-        fwrite(privateKey, 1, sizePrivateKey, outputFile);
+        cryptHeader.sizePrivateKey = sizePrivateKey;
 
-        
+        // Write the CryptFile info to the file.
+        fwrite(&cryptFile, 1, sizeof(cryptFile), outputFile);
+
+        // Write the filename to file so that can be encrypted too.
+        fwrite(cryptFile.fileName, 1, cryptFile.fileNameLen, outputFile);
+
+        fsync(outputFile->_fileno);
+        fclose(outputFile);
+
+        // Encrypt the CryptFile section.
+        unsigned long sizeCryptFile = sizeof(cryptFile);
+        char* encryptFileSection = this->encryptFileInfoSection(fileName + CRYPT_EXTENSION, &sizeCryptFile);
+        if (!encryptFileSection)
+                return false;
+
+        cryptHeader.sizeCryptFiles = sizeCryptFile;
+
+        /**
+         * @brief 
+         * This is the write stage.
+         */
+
+        outputFile = fopen((fileName + CRYPT_EXTENSION).c_str(), "wb");
+
         // Write the header to the file.
         fwrite(&cryptHeader, 1, sizeof(cryptHeader), outputFile);
         printf("[*] Written CryptHeader (%d bytes)\n", sizeof(cryptHeader));
 
-        // Write the CryptFile info to the file.
-        fwrite(&cryptFile, 1, sizeof(cryptFile), outputFile);
-        printf("[*] Written single CryptFile (%d bytes)\n", sizeof(cryptFile));
+        // Write the encrypted private key to the header. 
+        fwrite(privateKey, 1, sizePrivateKey, outputFile);
+
+        fwrite(encryptFileSection, 1, sizeCryptFile, outputFile);
+        printf("[*] Written single CryptFile (%d bytes)\n", sizeCryptFile);
+
+        free(encryptFileSection);
 
         // Write the encrypted data to the file.
         // The data is stored in the path with .enc at the end.
@@ -601,7 +634,6 @@ bool Crypter::md5SumFile(string fileName, unsigned char* fileHash)
         return true;
 }
 
-// TODO: Finish this function
 char* Crypter::encryptFileInfoSection(string fileName, unsigned long *sizeCryptFiles)
 {
         // Read the file and use this as the input for the RSA crypter.
@@ -636,6 +668,8 @@ char* Crypter::encryptFileInfoSection(string fileName, unsigned long *sizeCryptF
                 // Read out CryptFile buffer of max size that our RSA crypter can handle.
                 int bytesRead = fread(toEncryptBuffer, 1, MAX_ENCRYPT_SIZE, readPointer);
 
+                Utils::hexdump(toEncryptBuffer, bytesRead);
+
                 // Encrypt our input buffer.
                 int outputSize;
                 unsigned char* encryptedBuffer = rsaCrypter.encryptData(toEncryptBuffer, bytesRead, &outputSize);
@@ -666,7 +700,6 @@ char* Crypter::encryptFileInfoSection(string fileName, unsigned long *sizeCryptF
         return totalEncryptedBuffer;
 }
 
-// TODO: Finish this function.
 char* Crypter::decryptFileInfoSection(string password, string fileName)
 {
         FILE* readPointer = fopen(fileName.c_str(), "rb");
@@ -781,7 +814,7 @@ Crypter::CryptFile Crypter::encryptFile(string fileName, bool fromFolder)
                 string onlyFileName = Utils::validateSingleFile(fileName); // To get only the filename without path.     
                 cryptFile.fileNameLen = onlyFileName.length() +1;   // Length file name.
                 cryptFile.fileName = new char[cryptFile.fileNameLen];
-                memcpy(cryptFile.fileName, fileName.c_str(), cryptFile.fileNameLen);
+                memcpy(cryptFile.fileName, onlyFileName.c_str(), cryptFile.fileNameLen);
         }
         else {
                 cryptFile.fileNameLen = fileName.length() +1;   // Length file name.

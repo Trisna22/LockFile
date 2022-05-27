@@ -33,7 +33,7 @@ check:
 	./build/$(OUTPUT_FILE) -c ./testFiles/testFolder.crypt
 
 debug:
-	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/main2.cpp -ggdb3 --no-warnings -lcrypto
+	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/main.cpp -ggdb3 --no-warnings -lcrypto
 	./build/$(OUTPUT_FILE)
 
 test:

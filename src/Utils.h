@@ -80,8 +80,10 @@ string Utils::validateSingleFile(string path)
                 path = path.substr(0, path.length() -1);
 
         // Get only the filename.
-        if (path.find("/") != string::npos)
+        if (path.find("/") != string::npos) {
+
                 return path.substr(path.find_last_of("/")+1);
+        }
 
         return path;
 }

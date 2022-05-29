@@ -11,6 +11,7 @@ Encrypts/decrypts files on local computer with custom combination of encryption 
 - [X] RSA stream encrypt instead of blocks of data
 - [X] File shredder for the .enc files.
 - [ ] Save file permissions in CryptFile. (Read-Write-Execute)
+- [ ] Improve the AES encryption, write memory-based encryption.
 ```
 
 ## Bugs
@@ -35,3 +36,5 @@ Encrypts/decrypts files on local computer with custom combination of encryption 
     ...
 ]]
 ```
+
+## Used libraries

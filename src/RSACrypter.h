@@ -34,7 +34,9 @@ RSACrypter::RSACrypter()
 }
 
 /**
- * @brief Generates the public and private keys.
+ * Generates the public and private keys.
+ * 
+ * @param passPhrase The password to use for encrypting the private key.
  */
 bool RSACrypter::generateKeys(string passPhrase)
 {
@@ -118,6 +120,13 @@ char* RSACrypter::getPrivateKey(int* lenPrivateKey)
         return this->privateKey;
 }
 
+/**
+ * Sets the private key to use for decrypting from buffer location.
+ * 
+ * @param privateKey The private key to set.
+ * @param sizeKey Size of the private key to set.
+ * @param passphrase The pass-phrase to use to decrypt the private key.
+ */
 bool RSACrypter::setPrivateKey(char* privateKey, unsigned int sizeKey, string passphrase)
 {
         BIO *pri = BIO_new(BIO_s_mem());
@@ -156,6 +165,13 @@ bool RSACrypter::setPrivateKey(char* privateKey, unsigned int sizeKey, string pa
         return true;
 }
 
+/**
+ * RSA encrypts data.
+ * 
+ * @param data The data to encrypt.
+ * @param sizeData The size of the data to encrypt.
+ * @param sizeOutput The output size of the data that is encrypted.
+ */
 unsigned char* RSACrypter::encryptData(char* data, int sizeData, int *sizeOutput)
 {
         unsigned char* cipherOutput = (unsigned char*)malloc(RSA_size(this->keyPair));
@@ -174,6 +190,13 @@ unsigned char* RSACrypter::encryptData(char* data, int sizeData, int *sizeOutput
         return cipherOutput;
 }
 
+/**
+ * RSA decrypts data.
+ * 
+ * @param data The data to decrypt.
+ * @param sizeData The size of the data to decrypt.
+ * @param sizeOutput The output size of the data that is decrypted.
+ */
 unsigned char* RSACrypter::decryptData(char* data, int sizeData, int *sizeOutput)
 {
         unsigned char* plainText = (unsigned char*)malloc(sizeData);
@@ -195,6 +218,9 @@ unsigned char* RSACrypter::decryptData(char* data, int sizeData, int *sizeOutput
         return plainText;
 }
 
+/**
+ * Returns the max buffer size for RSA encryption.
+ */
 int RSACrypter::getRSAMaxBufferSize() 
 {
         return RSA_size(this->keyPair) -41 /* 41 for padding */ -1; // -1 for string termination.

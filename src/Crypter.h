@@ -5,7 +5,6 @@
 #ifndef Crypter_H
 #define Crypter_H
 
-#define DONT_LOG_ALL
 #define SINGLE_FILE     0x01
 #define TEMP_FILE       ".crypt_tmp"
 #define CRYPT_EXTENSION ".crypt"
@@ -81,15 +80,12 @@ private:
         CryptFile generateCryptFolder(string folderName);
         bool writeFileToCryptFile(string fileName, FILE* outputFile);
 
-        // Info section encryption/decryption.0:16 / 3:01
         char* encryptFileInfoSection(string fileName, unsigned long* sizeCryptFiles);
         char* decryptFileInfoSection(string password, string fileName);
 
-        // File encryption/decryption.
 	CryptFile encryptFile(string fileName, bool fromFolder = false);
 	bool decryptFile(CryptFileRead fileInfo, string fileName, FILE* inputFile);
 
-        // Folder encryption/decryption.
         bool encryptFolder(string fileName, string password, FILE* outputFile);
         bool decryptFolder(CryptFileRead fileInfo, string folderName);
         vector<CryptFile> loopFolder(string fileName);
@@ -113,6 +109,7 @@ Crypter::~Crypter()
  * Encrypts new files and stores information about them in a .crypt file.
  * 
  * @param target The target file/folder to encrypt.
+ * @param password The password to use for encrypting.
  */
 bool Crypter::createCryptFile(string target, char* password)
 {
@@ -133,7 +130,6 @@ bool Crypter::createCryptFile(string target, char* password)
         }
 
         bool isFolder = s.st_mode & S_IFDIR ? true : false;
-
 
         // Generate our crypt file.
         FILE* outputFile = fopen((target + CRYPT_EXTENSION).c_str(), "wb");
@@ -166,6 +162,7 @@ bool Crypter::createCryptFile(string target, char* password)
  * Decrypts the .crypt file to the original files.
  * 
  * @param target The .crypt file with the original files
+ * @param password The password to use for decrypting.
  */
 bool Crypter::openCryptFile(string target, char* password)
 {
@@ -173,14 +170,13 @@ bool Crypter::openCryptFile(string target, char* password)
                 return false;
         }
 
-
         FILE* inputFile = fopen(target.c_str(), "rb");
         if (inputFile == NULL) {
                 printf("[-] Failed to open the crypt file! Error code: %d\n\n", errno);
                 return false;
         }
 
-        printf("[*] Reading CryptHeader (%d bytes)\n", sizeof(CryptHeaderRead));
+        printf("\n[*] Reading CryptHeader (%d bytes)\n", sizeof(CryptHeaderRead));
         CryptHeaderRead cryptHeader;
         int fileRead = fread(&cryptHeader, 1, sizeof(CryptHeaderRead), inputFile);
         if (fileRead == -1) {
@@ -255,8 +251,6 @@ bool Crypter::openCryptFile(string target, char* password)
                 if (!progressBar)
                         printf("[*] Decrypting file %s\n", fileName.c_str());
 
-                // Something goes wrong heree
-                // AES gives an error.
                 if (!this->decryptFile(cryptFile, fileName, inputFile)) {
 
                         printf("Failed to decrypt file number %d with filename %s!\n\n", i, fileName.c_str());
@@ -283,6 +277,7 @@ bool Crypter::openCryptFile(string target, char* password)
  * Reads the CryptHeader object from the .crypt file and displays it.
  * 
  * @param target The .crypt file to read from.
+ * @param password The password to use for decrypting.
  */
 bool Crypter::readCryptHeader(string target, char* password)
 {
@@ -339,6 +334,7 @@ bool Crypter::readCryptHeader(string target, char* password)
  * Reads the content of the .crypt file for giving global information.
  * 
  * @param target The given .crypt file to read from.
+ * @param password The password to use for decrypting.
  */
 bool Crypter::readCryptFiles(string target, char* password)
 {
@@ -471,6 +467,12 @@ Crypter::CryptHeader Crypter::generateCryptHeader()
 
         return cryptHeader;
 }
+
+/**
+ * Generates a CryptFile object with a folder.
+ * 
+ * @param folderName The foldername to create.
+ */
 Crypter::CryptFile Crypter::generateCryptFolder(string folderName)
 {
         CryptFile cryptFile;
@@ -634,6 +636,12 @@ bool Crypter::md5SumFile(string fileName, unsigned char* fileHash)
         return true;
 }
 
+/**
+ * Encrypts the CryptFile objects of the file with RSA and our pass-phrase.
+ * 
+ * @param fileName The filename of the crypt file.
+ * @param sizeCryptFiles The size of CryptFile objects to encrypt.
+ */
 char* Crypter::encryptFileInfoSection(string fileName, unsigned long *sizeCryptFiles)
 {
         // Read the file and use this as the input for the RSA crypter.
@@ -668,8 +676,6 @@ char* Crypter::encryptFileInfoSection(string fileName, unsigned long *sizeCryptF
                 // Read out CryptFile buffer of max size that our RSA crypter can handle.
                 int bytesRead = fread(toEncryptBuffer, 1, MAX_ENCRYPT_SIZE, readPointer);
 
-                Utils::hexdump(toEncryptBuffer, bytesRead);
-
                 // Encrypt our input buffer.
                 int outputSize;
                 unsigned char* encryptedBuffer = rsaCrypter.encryptData(toEncryptBuffer, bytesRead, &outputSize);
@@ -700,6 +706,12 @@ char* Crypter::encryptFileInfoSection(string fileName, unsigned long *sizeCryptF
         return totalEncryptedBuffer;
 }
 
+/**
+ * Decrypts the section where the CryptFile objects are stored.
+ * 
+ * @param password The pass-phrase to use for decrypting.
+ * @param fileName The filename that has the CryptFile objects stored.
+ */
 char* Crypter::decryptFileInfoSection(string password, string fileName)
 {
         FILE* readPointer = fopen(fileName.c_str(), "rb");
@@ -762,6 +774,7 @@ char* Crypter::decryptFileInfoSection(string password, string fileName)
  * Encrypts the given file and returns the CryptFile object with our file data.
  * 
  * @param fileName The path to the file we want to encrypt.
+ * @param fromFolder Boolean to check if the file is encrypted individually or from a folder structure.
  */
 Crypter::CryptFile Crypter::encryptFile(string fileName, bool fromFolder)
 {
@@ -832,6 +845,7 @@ Crypter::CryptFile Crypter::encryptFile(string fileName, bool fromFolder)
  * Decrypts the section of the .crypt file to the original file.
  * 
  * @param fileInfo The CryptFile object with information about the file.
+ * @param fileName The file to decrypt.
  * @param inputFile The input .crypt file to read from.
 **/
 bool Crypter::decryptFile(CryptFileRead fileInfo, string fileName, FILE* inputFile)
@@ -906,6 +920,8 @@ bool Crypter::decryptFile(CryptFileRead fileInfo, string fileName, FILE* inputFi
  * Encrypts a folder structure.
  * 
  * @param folderName The folder path to encrypt into a CryptFile.
+ * @param password The pass-phrase to use to encrypt.
+ * @param outputFile The output pointer to write the CryptFile objects to.
  */
 bool Crypter::encryptFolder(string folderName, string password, FILE* outputFile)
 {
@@ -1039,11 +1055,15 @@ bool Crypter::encryptFolder(string folderName, string password, FILE* outputFile
                 }
         }
 
-        printf("Size of cryptfiles: %ld\n", sizeCryptFiles);
-
         return true;
 }      
 
+/**
+ * Decrypts a folder.
+ * 
+ * @param cryptFile The CryptFile object to get the folder info from.
+ * @param folderName The foldername to create.
+ */
 bool Crypter::decryptFolder(CryptFileRead cryptFile, string folderName)
 {
         if (mkdir(folderName.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
@@ -1059,6 +1079,10 @@ bool Crypter::decryptFolder(CryptFileRead cryptFile, string folderName)
                 }     
                 return false; 
         }
+
+        // TODO later?
+        // File permissions from cryptFile.permissions
+
         return true;
 }
 
@@ -1067,7 +1091,6 @@ bool Crypter::decryptFolder(CryptFileRead cryptFile, string folderName)
  * a vector of CryptFile objects of the subfiles/folders of the folder.
  * 
  * @param folderName The foldername to look in to.
- * @return vector<Crypter::CryptFile> 
  */
 vector<Crypter::CryptFile> Crypter::loopFolder(string folderName)
 {

@@ -12,6 +12,7 @@ Encrypts/decrypts files on local computer with custom combination of encryption 
 - [X] File shredder for the .enc files.
 - [ ] Save file permissions in CryptFile. (Read-Write-Execute)
 - [ ] Improve the AES encryption, write memory-based encryption.
+- [ ] Compression algorithm
 ```
 
 ## Bugs
@@ -38,3 +39,6 @@ Encrypts/decrypts files on local computer with custom combination of encryption 
 ```
 
 ## Used libraries
+OpenSSL [https://www.openssl.org/]  
+P-Threads [https://man7.org/linux/man-pages/man7/pthreads.7.html]
+

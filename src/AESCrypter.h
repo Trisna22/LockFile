@@ -209,6 +209,8 @@ bool AESCrypter::encryptDecryptFile(FILE* inputFile, FILE* outputFile, unsigned 
         int num_bytes_read, out_len;
         *sizeOutput = 0;
 
+        ...; // Check the max malloc size, so that we can encrypt in memory.
+
         for (;;) {
 
                 // Read in data in blocks until EOF. Update the ciphering with each read.

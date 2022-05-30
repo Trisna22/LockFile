@@ -42,3 +42,5 @@ Encrypts/decrypts files on local computer with custom combination of encryption 
 OpenSSL [https://www.openssl.org/]  
 P-Threads [https://man7.org/linux/man-pages/man7/pthreads.7.html]
 
+## Credits
+Me, Myself and I

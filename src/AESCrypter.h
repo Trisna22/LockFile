@@ -206,10 +206,13 @@ bool AESCrypter::encryptDecryptFile(FILE* inputFile, FILE* outputFile, unsigned 
         int cipher_block_size = EVP_CIPHER_block_size(this->encryptionMethod);
         unsigned char in_buf[BUFSIZE], out_buf[BUFSIZE + cipher_block_size];
 
+        // We have to calculate the output size.
+        // fseek(inputFile, 0, SEEK_END);
+        // printf("Filesize: %ld\n", ftell(inputFile));
+        // rewind(inputFile);
+
         int num_bytes_read, out_len;
         *sizeOutput = 0;
-
-        ...; // Check the max malloc size, so that we can encrypt in memory.
 
         for (;;) {
 

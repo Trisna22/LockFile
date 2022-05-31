@@ -46,6 +46,8 @@ test:
 	echo "A big test file inside test folder!!!" > ./testFiles/testFolder/testFolder2/test2.txt
 	cp /usr/bin/ls ./testFiles/test.txt
 	cp /usr/bin/ls ./testFiles/testFolder/testFolder2/ls_example
+	echo "ANother Test File" > ./testFiles/testFolder/testFolder2/test3.txt
+	cp /usr/bin/top ./testFiles/testFolder/top_test
 
 	find -name *.enc -type f -delete
 	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto

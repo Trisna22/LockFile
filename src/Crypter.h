@@ -595,9 +595,7 @@ bool Crypter::writeFileToCryptFile(string fileName, FILE* outputFile) {
 bool Crypter::md5SumFile(string fileName, unsigned char* fileHash)
 {
 	int hashLen = EVP_MD_size(HASH_TYPE);
-        // unsigned char *hash = (unsigned char *) malloc(hashLen);
-        unsigned char* hash = new unsigned char[hashLen];
-
+        unsigned char *hash = (unsigned char *) malloc(hashLen);
 
         FILE* inputFile = fopen(fileName.c_str(), "rb");
         if (inputFile == NULL) {
@@ -815,6 +813,7 @@ Crypter::CryptFile Crypter::encryptFile(string fileName, bool fromFolder)
 
         // Let AES do the work with file.
         unsigned long outputSize;
+        // ...; // Encrypt the file after the CryptFile objects are written
         if (!this->aesCrypter.encryptDecryptFile(inputFile, outputFile, &outputSize)) {
 
                 printf("[-] Failed to encrypt the file with AES!\n\n");

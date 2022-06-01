@@ -43,8 +43,7 @@ test:
 	mkdir -p ./testFiles/testFolder
 	echo "A big test file inside test folder!!!" > ./testFiles/testFolder/test.txt
 	mkdir -p ./testFiles/testFolder/testFolder2
-	echo "A big test file inside test folder!!!" > ./testFiles/testFolder/testFolder2/test2.txt
-	cp /usr/bin/ls ./testFiles/test.txt
+	echo "fuck me and fuck you bitch" > ./testFiles/testFolder/testFolder2/test2.txt
 	cp /usr/bin/ls ./testFiles/testFolder/testFolder2/ls_example
 
 	find -name *.enc -type f -delete
@@ -66,5 +65,5 @@ reset:
 	mkdir -p ./testFiles/testFolder
 	echo "A big test file inside test folder!!!" > ./testFiles/testFolder/test.txt
 	mkdir -p ./testFiles/testFolder/testFolder2
-	echo "A big test file inside test folder!!!" > ./testFiles/testFolder/testFolder2/test2.txt
-	cp /usr/bin/ls ./testFiles/test.txt
+	echo "fuck me and fuck you bitch" > ./testFiles/testFolder/testFolder2/test2.txt
+	cp /usr/bin/ls ./testFiles/testFolder/testFolder2/ls_example

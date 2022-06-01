@@ -25,7 +25,7 @@ void version() {
 
 int main(int argc, char*argv[]) {
 
-        printf("LockFile 1.0 (c) ramb0 2021\n\n");
+        printf("LockFile 1.0 (c) ramb0 2021-2022\n\n");
 
         if (argc < 2) {
                 usage();

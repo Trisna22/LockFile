@@ -193,6 +193,7 @@ bool Crypter::openCryptFile(string target, char* password)
         // Read the private key out.
         fseek(inputFile, cryptHeader.sizePrivateKey, SEEK_CUR);
 
+        printf("[*] Decrypting and indexing section headers\n");
         // Decrypt the section with CryptFile objects.
         char* cryptFileBuffer = this->decryptFileInfoSection(password, target);
         if (cryptFileBuffer == NULL) {
@@ -202,7 +203,7 @@ bool Crypter::openCryptFile(string target, char* password)
         }
                 
         // Save every file info object in a array.
-        printf("[*] About to read %d CryptFile objects\n", cryptHeader.countFileInfos);
+        printf("[*] Detected %d CryptFile objects\n", cryptHeader.countFileInfos);
 
         // Set our file pointer to the start of the file data.
         fseek(inputFile, cryptHeader.sizeCryptFiles, SEEK_CUR);
@@ -922,7 +923,7 @@ bool Crypter::encryptFolder(string folderName, string password, FILE* outputFile
         cryptHeader.sizeCryptFiles = sizeCryptFiles;
         
         // Write all the crypt file objects.
-        printf("[*] About to write %d CryptFile objects\n", folderList.size());
+        printf("[*] Generated %d CryptFile objects\n", folderList.size());
 
         bool progressBar = folderList.size() > 10;
         for (int i = 0; i < folderList.size(); i++) {
@@ -959,19 +960,19 @@ bool Crypter::encryptFolder(string folderName, string password, FILE* outputFile
         // Write the header to the file.
         cryptHeader.sizeCryptFiles = sizeCryptFiles; // Update size after encrypt.
         fwrite(&cryptHeader, 1, sizeof(cryptHeader), outputFile);
-        printf("[*] Written CryptHeader (%d bytes)\n", sizeof(cryptHeader));
+        printf("[*] CryptHeader written (%d bytes)\n", sizeof(cryptHeader));
 
         // Write the private key to file.
         fwrite(privateKey, 1, sizePrivateKey, outputFile);
-        printf("[*] Written encrypted private key (%d bytes)\n", sizePrivateKey);
+        printf("[*] Private key written (%d bytes)\n", sizePrivateKey);
 
         // Write the encrypted sections.
-        printf("[*] Writing encrypted section headers (%ld bytes)\n", sizeCryptFiles);
         fwrite(encryptedFileSections, 1, sizeCryptFiles, outputFile);
         free(encryptedFileSections); // Don't forget to free.
+        printf("[*] Encrypted section headers written (%ld bytes)\n", sizeCryptFiles);
 
         // Write the encrypted file data at the end.
-        printf("[*] Writing encrypted file data to the end of the CryptFile!\n");
+        printf("[*] Currently writing encrypted file data!\n");
         
         for (int i = 0; i < folderList.size(); i++) {
 

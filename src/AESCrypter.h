@@ -24,9 +24,8 @@ public:
         unsigned char* getIv();
         bool setKey(unsigned char* key, int keyLen, unsigned char* iv, bool decrypt);
 
-        unsigned char* encryptData(char* data, int sizeData, int *sizeOutput);
-        unsigned char* decryptData(char* data, int sizeData, int* sizeOutput);
-        bool encryptDecryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeOutput);
+        bool encryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeOutput);
+        bool decryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeInput);
 
         static unsigned long getOutputSizeOf(string fileName);
 
@@ -155,56 +154,8 @@ bool AESCrypter::setKey(unsigned char* passedKey, int lenKey, unsigned char* pas
         return true;
 }
 
-unsigned char* AESCrypter::encryptData(char* data, int sizeData, int *sizeOutput) 
-{
-        unsigned char* output;
-        int cipherLen;
-               
-        printf("\nPlaintext: %s\n", data);
-        printf("Plaintext size: %d\n\n", sizeData);
 
-        if (!EVP_EncryptUpdate(this->cipherContext, output, &cipherLen, (unsigned char*)data, sizeData+1)) {
-                printf("# Failed encrypt our plaintext with AES!\n\n");
-                ERR_print_errors_fp(stderr);
-                return NULL;
-        }
-
-        *sizeOutput = cipherLen;
-        if (!EVP_EncryptFinal_ex(this->cipherContext, output + cipherLen, sizeOutput)) {
-                printf("# Failed finalize our ciphertext with AES!\n\n");
-                ERR_print_errors_fp(stderr);
-                return NULL;
-        }
-
-        *sizeOutput += cipherLen;
-        return output;
-}
-
-unsigned char* AESCrypter::decryptData(char* data, int sizeData, int *sizeOutput) 
-{
-        printf("Ciphertext: %s\n", data);
-        printf("Size cipher: %d\n", sizeData);
-        unsigned char* output;
-        int plaintextLen;
-
-        if (!EVP_DecryptUpdate(this->cipherContext, output, &plaintextLen, (unsigned char*)data, sizeData)) {
-                printf("# Failed decrypt our ciphertext with AES!\n\n");
-                ERR_print_errors_fp(stderr);
-                return NULL;
-        }
-
-        *sizeOutput = plaintextLen;
-        if (!EVP_DecryptFinal_ex(this->cipherContext, output + plaintextLen, sizeOutput)) {
-                printf("# Failed finalize our ciphertext with AES!\n\n");
-                ERR_print_errors_fp(stderr);
-                return NULL;
-        }
-
-        *sizeOutput += plaintextLen;
-        return output;
-}
-
-bool AESCrypter::encryptDecryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeOutput)
+bool AESCrypter::encryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeOutput)
 {       
         // Allow enough space in output buffer for additional block.
         int cipher_block_size = EVP_CIPHER_block_size(this->encryptionMethod);
@@ -236,7 +187,7 @@ bool AESCrypter::encryptDecryptFile(FILE* inputFile, FILE* outputFile, unsigned 
                         fclose(outputFile);
                         return false;
                 }
-                
+
                 *sizeOutput += out_len;
                 if (num_bytes_read < BUFSIZE) {
                         // Reached end of file.
@@ -265,6 +216,67 @@ bool AESCrypter::encryptDecryptFile(FILE* inputFile, FILE* outputFile, unsigned 
         return true;
 }
 
+bool AESCrypter::decryptFile(FILE* inputFile, FILE* outputFile, unsigned long *sizeInput)
+{
+        // Allow enough space in output buffer for additional block.
+        int cipher_block_size = EVP_CIPHER_block_size(this->encryptionMethod);
+        unsigned char in_buf[BUFSIZE], out_buf[BUFSIZE + cipher_block_size];
+        
+        int num_bytes_read, out_len;
+        unsigned long counter = *sizeInput;
+
+        while (counter !=  0) {
+
+                if (counter < BUFSIZE)
+                        num_bytes_read = fread(in_buf, sizeof(unsigned char), counter, inputFile);
+                else
+                        num_bytes_read = fread(in_buf, sizeof(unsigned char), BUFSIZE, inputFile);
+
+
+                // Read in data in blocks until EOF. Update the ciphering with each read.
+                if (ferror(inputFile)){
+                        fprintf(stderr, "# Failed to read bytes from file! Error: %s\n", strerror(errno));
+                        fclose(outputFile);
+                        return false;
+                } 
+
+                if(!EVP_CipherUpdate(this->cipherContext, out_buf, &out_len, in_buf, num_bytes_read)){
+                        fprintf(stderr, "# Failed to update cipher block. OpenSSL error: %s\n", 
+                                ERR_error_string(ERR_get_error(), NULL));
+                        fclose(outputFile);
+                        return false;
+                }
+
+                fwrite(out_buf, sizeof(unsigned char), out_len, outputFile);
+                if (ferror(outputFile)) {
+                        fprintf(stderr, "# Failed to write data to file! Error: %s\n", strerror(errno));
+                        fclose(outputFile);
+                        return false;
+                }
+
+                counter -= num_bytes_read; // We want to count the encrypted bytes, not the output bytes.
+        }
+
+        // Now cipher the final block and write it out to file.
+        if(!EVP_CipherFinal_ex(this->cipherContext, out_buf, &out_len)) {
+                fprintf(stderr, "# Failed to finalize cipher! OpenSSL error: %s\n", 
+                        ERR_error_string(ERR_get_error(), NULL));
+                fclose(outputFile);
+                return false;
+        }
+
+        fwrite(out_buf, sizeof(unsigned char), out_len, outputFile);
+
+        if (ferror(outputFile)) {
+                fprintf(stderr, "# Failed to write the last bits to file! Error: %s\n", strerror(errno));
+                fclose(outputFile);
+                return false;
+        }      
+
+        fclose(outputFile);
+        return true;
+}
+
 unsigned long AESCrypter::getOutputSizeOf(string fileName)
 {
         int cipher_block_size = EVP_CIPHER_block_size(CIPHER_METHOD);
@@ -275,12 +287,9 @@ unsigned long AESCrypter::getOutputSizeOf(string fileName)
         if (fileSize % cipher_block_size == 0) {
                 int times = (fileSize / cipher_block_size) + 1;
                 outputSize = times* cipher_block_size;
-        } else {
+        } else
                 outputSize = fileSize + (cipher_block_size - (fileSize % cipher_block_size));
-                printf("Predicted outputsize = %ld\n", outputSize);
-        }
 
-        printf("Predicted outputsize = %ld\n", outputSize);
         return outputSize;
 }
 
@@ -289,130 +298,3 @@ void AESCrypter::string_to_uchar(string str, unsigned char* charArr)
         strncpy((char*)charArr, str.c_str(), str.length());
 }
 
-
-
-// Backup encryptFile()/decryptFile() functions.
-/*      
-bool AESCrypter::encryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeOutput)
-{
-        unsigned char* inputBuffer = (unsigned char*)malloc(BLOCK_SIZE);
-        unsigned char* outputBuffer = (unsigned char*)malloc(BLOCK_SIZE + EVP_MAX_BLOCK_LENGTH);
-        int outputBufferSize;
-        *sizeOutput = 0;
-
-        for (;;) {
-                int readSize = fread(inputBuffer, 1, BLOCK_SIZE, inputFile);
-                if (readSize <= 0 && errno != 0) {
-
-                        printf("# Failed to read buffer from input file! Error code: %d\n\n", errno);
-                        return false;
-                }
-                else if (readSize <= 0 && errno == 0)
-                        break;
-
-                if (!EVP_EncryptUpdate(this->cipherContext, outputBuffer, &outputBufferSize,
-                 inputBuffer, readSize)) {
-                        printf("# Failed to update the input buffer!\n\n");
-                        ERR_print_errors_fp(stderr);
-                        return false;
-                }
-
-                if (fwrite(outputBuffer, 1, outputBufferSize, outputFile) <= 0) {
-
-                        printf("# Failed to write the encrypted data to output file! Error code: %d\n\n", errno);
-                        return false;
-                }
-                
-                *sizeOutput += outputBufferSize; // Add the byte count to the pointer.
-        }
-
-        // Finalizing encrypted data.
-        int tempLen;
-        if (!EVP_EncryptFinal_ex(this->cipherContext, outputBuffer + outputBufferSize, &tempLen)) {
-
-                printf("# Failed to finalize the encrypted data!\n\n");
-                ERR_print_errors_fp(stderr);
-                return false;
-        }
-
-        *sizeOutput += tempLen; // Last update of byte count pointer.
-
-        // Last write.
-        if (fwrite(outputBuffer, 1, tempLen, outputFile) <= 0) {
-
-                printf("# Failed to write the final encrypted data to output file! Error code: %d\n\n", errno);
-                return false;
-        }
-
-        fclose(inputFile);
-        fclose(outputFile); 
-        return true;
-}
-bool AESCrypter::decryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeOutput)
-{
-        unsigned char* inputBuffer = (unsigned char*)malloc(BLOCK_SIZE);
-        unsigned char* outputBuffer = (unsigned char*)malloc(BLOCK_SIZE + EVP_MAX_BLOCK_LENGTH);
-        int outputBufferSize;
-        *sizeOutput = 0;
-
-        for (;;) {
-                int readSize = fread(inputBuffer, 1, BLOCK_SIZE, inputFile);
-                if (readSize <= 0 && errno != 0) {
-
-                        printf("# Failed to read buffer from input file! Error code: %d\n\n", errno);
-                        return false;
-                }
-                else if (readSize <= 0 && errno == 0)
-                        break;
-
-                if (!EVP_DecryptUpdate(this->cipherContext, outputBuffer, &outputBufferSize,
-                 inputBuffer, readSize)) {
-                        printf("# Failed to update the input buffer!\n\n");
-                        ERR_print_errors_fp(stderr);
-                        return false;
-                }
-
-                if (fwrite(outputBuffer, 1, outputBufferSize, outputFile) <= 0) {
-
-                        printf("# Failed to write the decrypted data to output file! Error code: %d\n\n", errno);
-                        return false;
-                }
-                
-                *sizeOutput += outputBufferSize; // Add the byte count to the pointer.
-        }
-
-        // Finalizing encrypted data.
-        // EVP_DecryptFinal_ex() always returns zero, even if it decrypted correctly.
-        int tempLen;
-        EVP_DecryptFinal_ex(this->cipherContext, outputBuffer + outputBufferSize, &tempLen); 
-        /*{
-
-                printf("# Failed to finalize the decrypted data!\n\n");
-                ERR_print_errors_fp(stderr);
-                return false;
-        }
-
-        // Somehow we miss a few bytes at the end of binary files!
-        // Maybe this is bc of the block sizes.
-
-        *sizeOutput += tempLen; // Last update of byte count pointer.
-
-        // If there are any bytes to write to.
-        if (tempLen != 0) {
-                // Last write.
-                if (fwrite(outputBuffer, 1, tempLen, outputFile) <= 0) {
-
-                        printf("# Failed to write the final decrypted data to output file! Error code: %d\n\n", errno);
-                        return false;
-                }
-        }
-
-        *sizeOutput += outputBufferSize;
-
-        free(inputBuffer);
-        free(outputBuffer);
-        fclose(inputFile);
-        fclose(outputFile);
-        return true;
-}
-*/

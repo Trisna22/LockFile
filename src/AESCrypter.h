@@ -12,6 +12,8 @@
 /* 16 byte block size (128 bits) */
 #define AES_BLOCK_SIZE 16
 
+#define CIPHER_METHOD EVP_aes_256_cbc_hmac_sha256()
+
 class AESCrypter {
 public:
         AESCrypter();
@@ -25,6 +27,8 @@ public:
         unsigned char* encryptData(char* data, int sizeData, int *sizeOutput);
         unsigned char* decryptData(char* data, int sizeData, int* sizeOutput);
         bool encryptDecryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeOutput);
+
+        static unsigned long getOutputSizeOf(string fileName);
 
 private:
         EVP_CIPHER_CTX* cipherContext;
@@ -201,16 +205,11 @@ unsigned char* AESCrypter::decryptData(char* data, int sizeData, int *sizeOutput
 }
 
 bool AESCrypter::encryptDecryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeOutput)
-{
+{       
         // Allow enough space in output buffer for additional block.
         int cipher_block_size = EVP_CIPHER_block_size(this->encryptionMethod);
         unsigned char in_buf[BUFSIZE], out_buf[BUFSIZE + cipher_block_size];
-
-        // We have to calculate the output size.
-        // fseek(inputFile, 0, SEEK_END);
-        // printf("Filesize: %ld\n", ftell(inputFile));
-        // rewind(inputFile);
-
+        
         int num_bytes_read, out_len;
         *sizeOutput = 0;
 
@@ -262,10 +261,27 @@ bool AESCrypter::encryptDecryptFile(FILE* inputFile, FILE* outputFile, unsigned 
         }      
         *sizeOutput += out_len;
 
-        fclose(outputFile);
         fclose(inputFile);
-
         return true;
+}
+
+unsigned long AESCrypter::getOutputSizeOf(string fileName)
+{
+        int cipher_block_size = EVP_CIPHER_block_size(CIPHER_METHOD);
+        unsigned long outputSize;
+                
+        unsigned long fileSize = Utils::getFileSize(fileName);
+
+        if (fileSize % cipher_block_size == 0) {
+                int times = (fileSize / cipher_block_size) + 1;
+                outputSize = times* cipher_block_size;
+        } else {
+                outputSize = fileSize + (cipher_block_size - (fileSize % cipher_block_size));
+                printf("Predicted outputsize = %ld\n", outputSize);
+        }
+
+        printf("Predicted outputsize = %ld\n", outputSize);
+        return outputSize;
 }
 
 void AESCrypter::string_to_uchar(string str, unsigned char* charArr)

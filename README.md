@@ -10,30 +10,10 @@ sudo cp ./build/LockFile /usr/bin
 LockFile --help
 ```
 
-## TODO
-```
-- [X] Section encryption/decryption.
-- [ ] Create a TUI (Terminal User Interface) animation?
-- [ ] Threads for better performance
-- [X] Use sendfile() function for better performance?
-- [X] RSA stream encrypt instead of blocks of data
-- [X] File shredder for the .enc files.
-- [ ] Save file permissions in CryptFile. (Read-Write-Execute)
-- [ ] Improve the AES encryption, write memory-based encryption.
-- [ ] Compression algorithm
-- [ ] -r option to auto delete the original files with our shredder
-```
-
-## Bugs
- ``` 
-- When you' re encrypting in one folder, it loops trough the .enc files too, so
- it will generate FILE.txt.enc -> FILE.txt.enc.enc -> FILE.txt.enc.enc.enc until the filename is too big. This can be fixed by exiting the loop shorthand or check the file count in the folder and loop that count only.
- ```
-
  ## CryptFile architecture
 ```xml
 <File>
-<CryptHeader>
+<CryptHeader/>
     <RSA-Encrypted>
         <CryptFile-object>
         <CryptFile-object>
@@ -50,6 +30,26 @@ LockFile --help
 ## Used libraries
 OpenSSL [https://www.openssl.org/]  
 pthreads [https://man7.org/linux/man-pages/man7/pthreads.7.html]
+
+## TODO
+```
+- [X] Section encryption/decryption.
+- [ ] Create a TUI (Terminal User Interface) animation?
+- [ ] Threads for better performance
+- [X] Use sendfile() function for better performance?
+- [X] RSA stream encrypt instead of blocks of data
+- [X] File shredder for the .enc files.
+- [ ] Save file permissions in CryptFile. (Read-Write-Execute)
+- [ ] Improve the AES encryption, write memory-based encryption.
+- [ ] Compression algorithm
+- [ ] -r option to auto delete the original files with our shredder
+```
+
+## Known bugs
+ ``` 
+- When you' re encrypting in one folder, it loops trough the .enc files too, so
+ it will generate FILE.txt.enc -> FILE.txt.enc.enc -> FILE.txt.enc.enc.enc until the filename is too big. This can be fixed by exiting the loop shorthand or check the file count in the folder and loop that count only.
+ ```
 
 ## Credits
 Me, Myself and I

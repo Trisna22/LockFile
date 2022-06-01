@@ -37,4 +37,7 @@
 peda-session-LockFile.txt
 testFiles
 test*
-build
+build/
+./build
+/build/LockFile
+./build/*

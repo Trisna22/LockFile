@@ -527,12 +527,12 @@ bool Crypter::writeFileToCryptFile(string fileName, FILE* outputFile) {
         fclose(outputFile);
 
         // Encrypt the CryptFile section.
-        unsigned long sizeCryptFile = sizeof(cryptFile);
-        char* encryptFileSection = this->encryptFileInfoSection(fileName + CRYPT_EXTENSION, &sizeCryptFile);
+        unsigned long sizeEncCryptFile = sizeof(cryptFile);
+        char* encryptFileSection = this->encryptFileInfoSection(fileName + CRYPT_EXTENSION, &sizeEncCryptFile);
         if (!encryptFileSection)
                 return false;
 
-        cryptHeader.sizeCryptFiles = sizeCryptFile;
+        cryptHeader.sizeCryptFiles = sizeEncCryptFile;
 
         /**
          * @brief 
@@ -548,19 +548,22 @@ bool Crypter::writeFileToCryptFile(string fileName, FILE* outputFile) {
         // Write the encrypted private key to the header. 
         fwrite(privateKey, 1, sizePrivateKey, outputFile);
 
-        fwrite(encryptFileSection, 1, sizeCryptFile, outputFile);
-        printf("[*] Written single CryptFile (%d bytes)\n", sizeCryptFile);
+        fwrite(encryptFileSection, 1, sizeEncCryptFile, outputFile);
+        printf("[*] Written single CryptFile (%d bytes)\n", sizeEncCryptFile);
 
         free(encryptFileSection);
 
         // Write the encrypted data to the file.
         // The data is stored in the path with .enc at the end.
-        if (!Utils::copyFileDataToFilePointer(fileName + ".enc", outputFile))
+        FILE* inputFile = fopen(fileName.c_str(), "rb");
+        unsigned long outputSize;
+        if (!aesCrypter.encryptFile(inputFile, outputFile, &outputSize)) {
                 return false;
+        }
 
-        // Delete our file with our shredder.
-        if (!Utils::shredFile(fileName + ".enc")) {
-                printf("\n[!] Failed to shred our temporary files!\n");
+        if (cryptFile.sizeFileData != outputSize) {
+                printf("[-] Encrypting file failed, got unexpected output size!\n\n");
+                return false;
         }
 
         fclose(outputFile);
@@ -570,9 +573,6 @@ bool Crypter::writeFileToCryptFile(string fileName, FILE* outputFile) {
         printf("\n");
         printf("CryptHeader\n");
         printf("  Magic:            %s\n", cryptHeader.magic);
-        printf("  Size priv key:    X\n");
-        printf("  Enc. priv key:    X\n");
-        printf("  IV priv key:      X\n");
         printf("  Count file infos: %d\n\n", cryptHeader.countFileInfos);
 
         printf("CryptFile\n");

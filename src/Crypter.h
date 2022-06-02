@@ -275,9 +275,6 @@ bool Crypter::openCryptFile(string target, char* password)
                         return false;
                 }
 
-                if (!progressBar)
-                        printf("[!] Unpacked and decrypted %s\n", fileName.c_str());
-
                 // Increment in progress.
                 progress = ((float)i / (float)cryptHeader.countFileInfos);
         }
@@ -582,6 +579,12 @@ bool Crypter::writeFileToCryptFile(string fileName, FILE* outputFile) {
 
         // Write the encrypted data to the file.
         // The data is stored in the path with .enc at the end.
+        if (!this->aesCrypter.setKey(cryptFile.fileKey, AES_256_KEY_SIZE)) {
+
+                printf("[-] Failed to set the encryption key for encrypting file!\n\n");
+                return false;
+        }
+        
         FILE* inputFile = fopen(fileName.c_str(), "rb");
         unsigned long outputSize;
         if (!aesCrypter.encryptFile(inputFile, outputFile, &outputSize)) {

@@ -12,6 +12,8 @@
 #define FILL_IV         "XXXXXXXXXXXXXXXX"
 #define FILL_KEY        "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 
+#define MAX_TRHEADS     16
+
 class Crypter {
 public:
 	Crypter();
@@ -22,6 +24,14 @@ public:
         bool readCryptHeader(string target, char* password);
         bool readCryptFiles(string target, char* password);
 	bool checkCryptFile(string fileName);
+
+        void setRemove();
+        void setQuiet();
+
+        // Our option parser
+private: bool quiet = false, remove = false;
+private: volatile int runningThreads = 0;
+private: pthread_mutex_t runingMutex = PTHREAD_MUTEX_INITIALIZER;
 private:
         /**
          * @brief 
@@ -69,6 +79,7 @@ private:
                 // unsigned char* encryptedPrivateKey;// The RSA private key.
         };
 
+
         AESCrypter aesCrypter;
         RSACrypter rsaCrypter;
 
@@ -101,7 +112,7 @@ Crypter::Crypter()
 }       
 
 Crypter::~Crypter()
-{
+{   
 
 }
 
@@ -154,6 +165,12 @@ bool Crypter::createCryptFile(string target, char* password)
         else 
                 if (!this->writeFileToCryptFile(target, outputFile))
                         return false;
+        
+        // Check if we need to delete the original files.
+        if (this->remove) {
+
+                printf("[*] Cleaning up loose ends with our shredder\n");
+        }
 
         return true;
 }
@@ -445,6 +462,16 @@ bool Crypter::checkCryptFile(string target)
         fclose(inputFile);
         return true;
 }
+
+void Crypter::setRemove()
+{
+        this->remove = true;
+}
+
+void Crypter::setQuiet()
+{
+        this->quiet = true;
+}      
 
 /////////// private member functions ///////////////
 
@@ -794,18 +821,9 @@ Crypter::CryptFile Crypter::encryptFile(string fileName, bool fromFolder)
                 return cryptFile;
         }
 
-        // Generate key and set the key.
-        this->aesCrypter.createRandomKey(cryptFile.fileKey);
+        // Generate unique key for every file. 
+        AESCrypter::createRandomKey(cryptFile.fileKey);
         cryptFile.fileKey[AES_256_KEY_SIZE] = '\0'; // For string termination.
-        if (!this->aesCrypter.setKey(cryptFile.fileKey, AES_256_KEY_SIZE)) {
-
-                printf("[-] Failed to set the generated key as encryption key!\n\n");
-                return cryptFile;
-        }
-
-        // Set the generated IV.
-        this->aesCrypter.setIv(cryptFile.fileIV);
-
         cryptFile.sizeFileData = AESCrypter::getOutputSizeOf(fileName); // File data size.
 
         // Create a CryptFile object to store the data in the header.
@@ -846,8 +864,6 @@ bool Crypter::decryptFile(CryptFileRead fileInfo, string fileName, FILE* inputFi
                 printf("[-] Failed to open the input/output files! Error code: %d\n", errno);
                 return false;
         }
-
-        this->aesCrypter.setIv2(fileInfo.fileIV);
 
         // Set the key and IV and start decrypting.
         fileInfo.fileKey[AES_256_KEY_SIZE] = '\0'; // For string termination.
@@ -996,7 +1012,6 @@ bool Crypter::encryptFolder(string folderName, string password, FILE* outputFile
                         printf("[-] Failed to set the encryption key for encrypting file!\n\n");
                         return false;
                 }
-                this->aesCrypter.setIv(cryptFile.fileIV);
                 
                 FILE* toEncryptFile = fopen(cryptFile.fileName, "rb");
                 

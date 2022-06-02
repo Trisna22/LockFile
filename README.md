@@ -20,6 +20,9 @@ $ LockFile --decrypt folderToDecrypt
 # To get information of any CryptFile
 $ LockFile --info cryptFile
 ```
+## Screenshot
+![plot](./screenshots/screenshot_encryption.png)
+
 
  ## CryptFile architecture
 ```xml

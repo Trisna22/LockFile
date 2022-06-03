@@ -18,10 +18,7 @@ class AESCrypter {
 public:
         AESCrypter();
         ~AESCrypter();
-        void createRandomKey(unsigned char*);
-        void setIv(unsigned char*);
-        void setIv2(unsigned char*);
-        unsigned char* getIv();
+        static void createRandomKey(unsigned char*);
         bool setKey(unsigned char* key, int keyLen, unsigned char* iv, bool decrypt);
 
         bool encryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeOutput);
@@ -65,23 +62,6 @@ void AESCrypter::createRandomKey(unsigned char* key)
 
         for (int i = 0; i < 32; i++)
                 key[i] = randomKey[i];
-}
-
-void AESCrypter::setIv(unsigned char* iv)
-{
-        for (int i = 0; i < 16; i++)
-                iv[i] = this->IV[i];
-}
-
-void AESCrypter::setIv2(unsigned char* iv)
-{
-        for (int i = 0; i < 16; i++)
-                this->IV[i] = iv[i];
-
-}
-
-unsigned char* AESCrypter::getIv() {
-        return this->IV;
 }
 
 bool AESCrypter::setKey(unsigned char* passedKey, int lenKey, unsigned char* passedIV = NULL, bool decrypt = false)

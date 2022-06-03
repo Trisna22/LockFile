@@ -18,4 +18,6 @@
 #include <openssl/pem.h>
 #include <openssl/ssl.h>
 
+#include <pthread.h>
+
 using namespace std;

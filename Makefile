@@ -11,29 +11,29 @@ BUILD_FOLDER=./build
 default:
 	mkdir -p ./build/
 	mkdir -p ./src/
-	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
+	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto -pthread
 
 encrypt:
 	find -name *.enc -type f -delete
 	mv ./testFiles/testFolder2 ./testFiles/testFolder
-	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
+	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto -pthread
 	./build/$(OUTPUT_FILE) -e ./testFiles/testFolder
 
 decrypt:
 	mv ./testFiles/testFolder ./testFiles/testFolder2
-	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
+	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto -pthread
 	./build/$(OUTPUT_FILE) -d ./testFiles/testFolder.crypt
 
 info: 
-	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
+	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto -pthread
 	./build/$(OUTPUT_FILE) -i ./testFiles/testFolder.crypt
 
 check:
-	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
+	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto -pthread
 	./build/$(OUTPUT_FILE) -c ./testFiles/testFolder.crypt
 
 debug:
-	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/main.cpp -ggdb3 --no-warnings -lcrypto
+	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/main.cpp -ggdb3 --no-warnings -lcrypto -pthread
 	./build/$(OUTPUT_FILE)
 
 test:
@@ -47,11 +47,11 @@ test:
 	cp /usr/bin/ls ./testFiles/testFolder/testFolder2/ls_example
 
 	find -name *.enc -type f -delete
-	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
+	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto -pthread
 	./build/$(OUTPUT_FILE) -e ./testFiles/testFolder
 
 	mv ./testFiles/testFolder ./testFiles/testFolder2
-	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto
+	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto -pthread
 	./build/$(OUTPUT_FILE) -d ./testFiles/testFolder.crypt
 
 	diff -r ./testFiles/testFolder2 ./testFiles/testFolder

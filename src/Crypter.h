@@ -28,7 +28,7 @@ public:
 // Our option parser
 private: bool quiet = false, remove = false;
 private: volatile int runningThreads = 0;
-private: pthread_mutex_t runingMutex = PTHREAD_MUTEX_INITIALIZER;
+private: pthread_mutex_t runningMutex = PTHREAD_MUTEX_INITIALIZER;
 private:
         /**
          * @brief 
@@ -76,6 +76,14 @@ private:
                 // unsigned char* encryptedPrivateKey;// The RSA private key.
         };
 
+        typedef struct EncryptThreadParameters {
+                CryptFile cryptFile;
+                FILE* outputFile;
+                unsigned long offset;
+                pthread_mutex_t runningMutex;
+                int loopId;
+        } EncryptThreadParams;
+
         AESCrypter aesCrypter;
         RSACrypter rsaCrypter;
 
@@ -96,6 +104,8 @@ private:
         bool encryptFolder(string fileName, string password, FILE* outputFile);
         bool decryptFolder(CryptFileRead fileInfo, string folderName);
         vector<CryptFile> loopFolder(string fileName);
+
+        static void *threadedEncrypt(void*);
 };
 
 #endif // !Crypter_H
@@ -981,51 +991,85 @@ bool Crypter::encryptFolder(string folderName, string password, FILE* outputFile
         // Write the encrypted file data at the end.
         printf("[*] Currently writing encrypted file data!\n");
         
+        pthread_t threadIds[folderList.size()];
+        int countOfThreads = 0;
+
+        unsigned long offsetCounter = sizeof(CryptHeader) + sizeCryptFiles + sizePrivateKey;
+
+        pthread_mutex_init(&runningMutex, NULL); // Init our mutex object.
+        
         for (int i = 0; i < folderList.size(); i++) {
 
                 CryptFile cryptFile = folderList.at(i);
+                printf("%d -> %s\n", i, cryptFile.fileName);
 
                 // Increment in progress.
                 progress = ((float)i / (float)folderList.size());
 
-                // If it is a folder, we don't have to copy anything.
+                // If it is a folder, we don't have to encrypt anything.
                 if (cryptFile.isFolder)
                         continue;
 
                 if (progressBar) {
                         Utils::printProgressBar(progress);
                 }
-                else
-                        printf("[*] Written encrypted data %s (%d bytes)\n", cryptFile.fileName, sizeof(cryptFile));
+                // else
+                //         printf("[*] Written encrypted data %s (%d bytes)\n", cryptFile.fileName, sizeof(cryptFile));
 
-                if (!this->aesCrypter.setKey(cryptFile.fileKey, AES_256_KEY_SIZE)) {
 
-                        printf("[-] Failed to set the encryption key for encrypting file!\n\n");
-                        return false;
-                }
+                /* 
+                        TODO:  Here must come parallisation. 
+                */
+
+                // Calculate the offset to write the encrypted data to.
+                unsigned long fileOffset = offsetCounter;
+                offsetCounter += AESCrypter::getOutputSizeOf(cryptFile.fileName);
+
+                EncryptThreadParams* params = new EncryptThreadParameters();
+                params->cryptFile = cryptFile;
+                params->outputFile = outputFile;
+                params->offset = fileOffset;
+                params->runningMutex = runningMutex;
+                params->loopId = i;
+
+                printf("Mem location params main-thread %d => %p\n", i, params);
+                pthread_create(&threadIds[countOfThreads], NULL, Crypter::threadedEncrypt, params);
+                countOfThreads += 1;
+
+                // if (!this->aesCrypter.setKey(cryptFile.fileKey, AES_256_KEY_SIZE)) {
+
+                //         printf("[-] Failed to set the encryption key for encrypting file!\n\n");
+                //         return false;
+                // }
                 
-                FILE* toEncryptFile = fopen(cryptFile.fileName, "rb");
+                // FILE* toEncryptFile = fopen(cryptFile.fileName, "rb");
                 
-                // Encrypt the file with AES.
-                unsigned long outputFileSize;
-                if (!aesCrypter.encryptFile(toEncryptFile, outputFile, &outputFileSize)) {
+                // // Encrypt the file with AES.
+                // unsigned long outputFileSize;
+                // if (!aesCrypter.encryptFile(toEncryptFile, outputFile, &outputFileSize)) {
 
-                        printf("[-] Failed to write the encrypted file to crypt file!\n\n");
-                        return false;
-                }
+                //         printf("[-] Failed to write the encrypted file to crypt file!\n\n");
+                //         return false;
+                // }
 
-                if (cryptFile.sizeFileData != outputFileSize) {
-                        printf("[-] Encrypting file failed, got unexpected output size!\n\n");
-                        return false;
-                }
+                // if (cryptFile.sizeFileData != outputFileSize) {
+                //         printf("[-] Encrypting file failed, got unexpected output size!\n\n");
+                //         return false;
+                // }
 
-                if (!progressBar) {
-                        printf("[*] Encrypted file data copy (%d bytes)\n", cryptFile.sizeFileData);
-                }
+                // if (!progressBar) {
+                //         printf("[*] Encrypted file data copy (%d bytes)\n", cryptFile.sizeFileData);
+                // }
         }
 
         if (progressBar)
                 Utils::printProgressBar(1);
+
+
+        for (int i = 0; i < countOfThreads; i++) {
+                if (threadIds[i] != NULL)
+                        pthread_join(threadIds[i], NULL);
+        }
         
         fclose(outputFile);
         printf("\n[!] Locking finished!\n\n");
@@ -1131,3 +1175,120 @@ vector<Crypter::CryptFile> Crypter::loopFolder(string folderName)
         return listFolder;
 }
 
+/**
+ * Thread function that encrypts our file parallel with AES.
+ * 
+ * @param params The EncryptThreadParams strucutre with function params.
+ * @return void* 
+ */
+void* Crypter::threadedEncrypt(void* params)
+{
+        sleep(1); // For debugging
+        EncryptThreadParams* threadParams = (EncryptThreadParams*)params;
+        printf("Mem location params in thread %i => %p\n",threadParams->loopId, params);
+
+        printf("\n==>Thread params check: \nFilename: %s\n", threadParams->cryptFile.fileName);
+        printf("Current thread ID: %ld\n", threadParams->loopId);
+        printf("Offset: %ld\n\n", threadParams->offset);
+
+        FILE* inputFile = fopen(threadParams->cryptFile.fileName, "rb");
+        if (inputFile == NULL) {
+
+                fprintf(stderr, "& Failed to open the input file %s! Error code: %d\n", threadParams->cryptFile.fileName, errno);
+                return 0;
+        }
+
+        AESCrypter aesCrypter;
+        if (!aesCrypter.setKey(threadParams->cryptFile.fileKey, AES_256_KEY_SIZE)) {
+
+                printf("& Thread failed to set keys for AES encrypting!\n\n");
+                return 0;
+        }
+
+
+        unsigned char in_buf[BUFSIZE *sizeof(unsigned char)];
+        int bufferSize, out_len;
+
+        unsigned long writeOffset = threadParams->offset;
+        for (;;) {
+                // Read
+                int readSize = fread(in_buf, sizeof(unsigned char), BUFSIZE, inputFile);
+                if (ferror(inputFile)){
+                        fprintf(stderr, "# Failed to read bytes from file! Error: %s\n", strerror(errno));
+                        fclose(threadParams->outputFile);
+                        return 0;
+                } 
+                writeOffset += readSize;
+
+                // Encrypt 
+                unsigned char* out_buf = aesCrypter.encryptDecryptData(in_buf, &readSize);
+                if (out_buf == NULL) {
+
+                        fprintf(stderr, "& Failed to encrypt the data for thread %ld with file %s!\n", 
+                                threadParams->loopId, threadParams->cryptFile.fileName);
+                        fclose(threadParams->outputFile);
+                        return 0;
+                }
+
+                // Write
+                pthread_mutex_lock(&threadParams->runningMutex);
+                printf("Stopping for thread %ld\n", threadParams->loopId);
+
+                if (pwrite(fileno(threadParams->outputFile), out_buf, bufferSize, writeOffset) == -1) {
+
+                        fprintf(stderr, "& Failed to write encrypted data at offset! Error code: %d\n", errno);
+                        fclose(threadParams->outputFile);
+                        return 0;
+                }
+                printf("Writing %s %d bytes at offset %ld\n", threadParams->cryptFile.fileName, bufferSize, writeOffset);
+
+                printf("Continuing from thread %ld\n", threadParams->loopId);
+                pthread_mutex_unlock(&threadParams->runningMutex);
+
+                if (readSize < BUFSIZE) {
+                        break;
+                }
+        }
+
+
+        pthread_mutex_lock(&threadParams->runningMutex);
+
+        // Final write
+        unsigned char* out_buf = aesCrypter.finalData(&bufferSize);
+        if (out_buf == NULL) {
+                printf("& Failed to final encrypted data for thread %ld with file %s!\n",                                 
+                        threadParams->loopId, threadParams->cryptFile.fileName);
+                fclose(threadParams->outputFile);
+                return 0;
+
+        }
+        pwrite(fileno(threadParams->outputFile), out_buf, bufferSize, writeOffset);
+
+        pthread_mutex_unlock(&threadParams->runningMutex);
+
+        writeOffset += bufferSize;
+        printf("Total bytes written: %ld\n", writeOffset - threadParams->offset);
+        
+        if (threadParams->cryptFile.sizeFileData != (writeOffset - threadParams->offset)) {
+                printf("& Encrypting file failed, got unexpected output size!\n\n");
+                return 0;
+        }
+
+        free(threadParams);
+        /** @brief 
+         * Making use of pwrite()
+         * 
+         * Source:
+         * https://linux.die.net/man/2/pwrite 
+         * 
+         * We could do it in two ways:
+         * 
+         * 1. Give the offset to the encryptFile function of AESCrypter and use pwrite() there.
+         * 2. Use the encryptData function and loop in this function, so we can use pwrite() here.
+         * 
+         * Outcome:
+         * We're going to use method 2, because we need to use the mutex object to stop the threads
+         * for writing to outputFile.
+         **/
+        return 0;
+}

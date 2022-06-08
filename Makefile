@@ -45,6 +45,7 @@ test:
 	mkdir -p ./testFiles/testFolder/testFolder2
 	echo "fuck me and fuck you bitch" > ./testFiles/testFolder/testFolder2/test2.txt
 	cp /usr/bin/ls ./testFiles/testFolder/testFolder2/ls_example
+	touch ./testFiles/testFolder/empty_file
 
 	find -name *.enc -type f -delete
 	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto -pthread
@@ -67,3 +68,4 @@ reset:
 	mkdir -p ./testFiles/testFolder/testFolder2
 	echo "fuck me and fuck you bitch" > ./testFiles/testFolder/testFolder2/test2.txt
 	cp /usr/bin/ls ./testFiles/testFolder/testFolder2/ls_example
+	touch ./testFiles/testFolder/empty_file

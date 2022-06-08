@@ -264,17 +264,14 @@ bool AESCrypter::decryptFile(FILE* inputFile, FILE* outputFile, unsigned long *s
 unsigned char* AESCrypter::encryptDecryptData(unsigned char* data,  int *sizeData) 
 {
         int out_len, cipher_block_size = EVP_CIPHER_block_size(this->encryptionMethod);
-        unsigned char out_buf[BUFSIZE + cipher_block_size];
+        unsigned char* out_buf = new unsigned char[BUFSIZ + cipher_block_size];
 
-        printf("size data: %d\n", *sizeData);
         if (!EVP_CipherUpdate(this->cipherContext, out_buf, &out_len, data, *sizeData)) {
 
                 printf("# Failed encrypt our plaintext with AES!\n\n");
                 ERR_print_errors_fp(stderr);
                 return NULL;
         }
-        printf("Outsize: %d\n", out_len);
-        printf("Out buff: %s\n", out_buf);
 
         *sizeData = out_len;
         return out_buf;
@@ -283,7 +280,7 @@ unsigned char* AESCrypter::encryptDecryptData(unsigned char* data,  int *sizeDat
 unsigned char* AESCrypter::finalData(int* sizeData) 
 {
         int cipher_block_size = EVP_CIPHER_block_size(this->encryptionMethod);
-        unsigned char out_buf[BUFSIZE + cipher_block_size];
+        unsigned char* out_buf = new unsigned char[BUFSIZE + cipher_block_size];
         if(!EVP_CipherFinal_ex(this->cipherContext, out_buf, sizeData)) {
 
                 fprintf(stderr, "# Failed to finalize cipher! OpenSSL error: %s\n", 
@@ -291,7 +288,6 @@ unsigned char* AESCrypter::finalData(int* sizeData)
                 return NULL;
         }
 
-        printf("Output final: %d\n", *sizeData);
         return out_buf;
 }
 

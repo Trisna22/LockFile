@@ -24,10 +24,15 @@ public:
         bool readCryptHeader(string target, char* password);
         bool readCryptFiles(string target, char* password);
 	bool checkCryptFile(string fileName);
+
+        void setRemove();
+        void setQuiet();
         
 // Our option parser
 private: bool quiet = false, remove = false;
 private: pthread_mutex_t runningMutex = PTHREAD_MUTEX_INITIALIZER;
+
+private: pthread_mutex_t runingMutex = PTHREAD_MUTEX_INITIALIZER;
 private:
         /**
          * @brief 
@@ -117,7 +122,7 @@ Crypter::Crypter()
 }       
 
 Crypter::~Crypter()
-{
+{   
 
 }
 
@@ -170,6 +175,12 @@ bool Crypter::createCryptFile(string target, char* password)
         else 
                 if (!this->writeFileToCryptFile(target, outputFile))
                         return false;
+        
+        // Check if we need to delete the original files.
+        if (this->remove) {
+
+                printf("[*] Cleaning up loose ends with our shredder\n");
+        }
 
         // Check if we need to delete the original files.
         if (this->remove) {
@@ -277,9 +288,6 @@ bool Crypter::openCryptFile(string target, char* password)
                         printf("Failed to decrypt file number %d with filename %s!\n\n", i, fileName.c_str());
                         return false;
                 }
-
-                if (!progressBar)
-                        printf("[!] Unpacked and decrypted %s\n", fileName.c_str());
 
                 // Increment in progress.
                 progress = ((float)i / (float)cryptHeader.countFileInfos);
@@ -466,6 +474,16 @@ bool Crypter::checkCryptFile(string target)
         return true;
 }
 
+void Crypter::setRemove()
+{
+        this->remove = true;
+}
+
+void Crypter::setQuiet()
+{
+        this->quiet = true;
+}      
+
 /////////// private member functions ///////////////
 
 /**
@@ -575,6 +593,12 @@ bool Crypter::writeFileToCryptFile(string fileName, FILE* outputFile) {
 
         // Write the encrypted data to the file.
         // The data is stored in the path with .enc at the end.
+        if (!this->aesCrypter.setKey(cryptFile.fileKey, AES_256_KEY_SIZE)) {
+
+                printf("[-] Failed to set the encryption key for encrypting file!\n\n");
+                return false;
+        }
+        
         FILE* inputFile = fopen(fileName.c_str(), "rb");
         unsigned long outputSize;
         if (!aesCrypter.encryptFile(inputFile, outputFile, &outputSize)) {
@@ -810,18 +834,9 @@ Crypter::CryptFile Crypter::encryptFile(string fileName, bool fromFolder)
         }
 
         // Generate unique key for every file. 
-        AESCrypter::createRandomKey(cryptFile.fileKey);        
+        AESCrypter::createRandomKey(cryptFile.fileKey);
         cryptFile.fileKey[AES_256_KEY_SIZE] = '\0'; // For string termination.
-        if (!this->aesCrypter.setKey(cryptFile.fileKey, AES_256_KEY_SIZE)) {
-
-                printf("[-] Failed to set the generated key as encryption key!\n\n");
-                return cryptFile;
-        }
-
-        if (Utils::getFileSize(fileName) <= (off64_t)0)
-                cryptFile.sizeFileData = 0;
-        else
-                cryptFile.sizeFileData = AESCrypter::getOutputSizeOf(fileName); // File data size.
+        cryptFile.sizeFileData = AESCrypter::getOutputSizeOf(fileName); // File data size.
 
         // Create a CryptFile object to store the data in the header.
         // First check if file is part of folder structure.

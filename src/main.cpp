@@ -39,35 +39,43 @@ int main(int argc, char*argv[]) {
 
                 string arg = argv[i];
 
-                if ((arg == "-e" || arg == "--encrypt")&& argc == 3) {
-                        crypter.createCryptFile(argv[2], Utils::requirePassword());
+                if ((arg == "-e" || arg == "--encrypt")&& i < argc) {
+                        crypter.createCryptFile(argv[i +1], Utils::requirePassword());
                         return 0;
                 }
-                else if ((arg == "-i" || arg == "--info") && argc == 3) {
+                else if (arg == "-q" || arg == "--quiet") {
+                        crypter.setQuiet();
+                        continue;
+                }
+                else if (arg == "-r" || arg == "--remove") {
+                        crypter.setRemove();
+                        continue;
+                }
+                else if ((arg == "-i" || arg == "--info") && i < argc) {
 
                         char* passPhrase = Utils::requirePassword();
-                        crypter.readCryptHeader(argv[2], passPhrase);
-                        crypter.readCryptFiles(argv[2], passPhrase);
+                        crypter.readCryptHeader(argv[i +1], passPhrase);
+                        crypter.readCryptFiles(argv[i +1], passPhrase);
                         return 0;
                 }
-                else if ((arg == "-d" || arg == "--decrypt") && argc == 3) {
+                else if ((arg == "-d" || arg == "--decrypt") && i < argc) {
 
-                        crypter.openCryptFile(argv[2], Utils::requirePassword());
+                        crypter.openCryptFile(argv[i+1], Utils::requirePassword());
                         return 0;
                 }
-                else if ((arg == "-c" || arg == "--check") && argc == 3) {
+                else if ((arg == "-c" || arg == "--check") && i < argc) {
 
-                        if (crypter.checkCryptFile(argv[2])) {
+                        if (crypter.checkCryptFile(argv[i+1])) {
 
                                 printf("[!] Valid .crypt file!\n");
                         }
                         return 0;   
                 }
-                else if ((arg == "-h" || arg == "--help") && argc == 3) {
+                else if (arg == "-h" || arg == "--help") {
                         help();
                         return 0;
                 }
-                else if ((arg == "-v" || arg == "--version") && argc == 3) {
+                else if (arg == "-v" || arg == "--version") {
                         version();
                         return 0;
                 }       

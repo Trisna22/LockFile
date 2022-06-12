@@ -304,6 +304,8 @@ unsigned long AESCrypter::getOutputSizeOf(string fileName)
         unsigned long outputSize;
                 
         unsigned long fileSize = Utils::getFileSize(fileName);
+        if (fileSize == 0)
+                return fileSize;
 
         if (fileSize % cipher_block_size == 0) {
                 int times = (fileSize / cipher_block_size) + 1;

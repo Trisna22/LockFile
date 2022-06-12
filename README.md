@@ -2,13 +2,27 @@
 
 Encrypts/decrypts files on local computer with custom combination of encryption methods. Every file in a folder gets an own key so bruteforcing all files is harder. Make sure to not forget your password or else your data will be gone for good. Your unencrypted files can be shredded if needed.
 
-## Install and usage
+## Installing project
 ```bash
-cd LockFile
-make
-sudo cp ./build/LockFile /usr/bin
-LockFile --help
+$ git clone https://github.com/Trisna22/LockFile
+$ cd LockFile
+$ make
+$ sudo cp ./build/LockFile /usr/bin
+$ LockFile --help
 ```
+
+## Usage
+```bash
+# For encrypting files/folders
+$ LockFile --encrypt folderToEncrypt
+# For decrypting files/folders
+$ LockFile --decrypt folderToDecrypt
+# To get information of any CryptFile
+$ LockFile --info cryptFile
+```
+## Screenshot
+![plot](./screenshots/screenshot_encryption.png)
+
 
  ## CryptFile architecture
 ```xml
@@ -61,6 +75,7 @@ pthreads [https://man7.org/linux/man-pages/man7/pthreads.7.html]
 - [ ] Save file permissions in CryptFile. (Read-Write-Execute)
 - [ ] Compression algorithm
 - [ ] -r option to auto delete the original files with our shredder
+- [ ] Adding own MIME and file extension
 ```
 
 ## Credits

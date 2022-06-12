@@ -46,7 +46,7 @@ test:
 	mkdir -p ./testFiles/testFolder
 	echo "A big test file inside test folder!!!" > ./testFiles/testFolder/test.txt
 	mkdir -p ./testFiles/testFolder/testFolder2
-	echo "fuck me and fuck you bitch" > ./testFiles/testFolder/testFolder2/test2.txt
+	echo "A very large file" > ./testFiles/testFolder/testFolder2/test2.txt
 	cp /usr/bin/ls ./testFiles/testFolder/testFolder2/ls_example
 	touch ./testFiles/testFolder/empty_file
 
@@ -69,6 +69,6 @@ reset:
 	mkdir -p ./testFiles/testFolder
 	echo "A big test file inside test folder!!!" > ./testFiles/testFolder/test.txt
 	mkdir -p ./testFiles/testFolder/testFolder2
-	echo "fuck me and fuck you bitch" > ./testFiles/testFolder/testFolder2/test2.txt
+	echo "A very large file" > ./testFiles/testFolder/testFolder2/test2.txt
 	cp /usr/bin/ls ./testFiles/testFolder/testFolder2/ls_example
 	touch ./testFiles/testFolder/empty_file

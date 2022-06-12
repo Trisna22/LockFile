@@ -71,7 +71,8 @@ pthreads [https://man7.org/linux/man-pages/man7/pthreads.7.html]
 - [X] File shredder for deleting files
 - [X] Improve the AES encryption, write memory-based encryption.
 - [~] Create a TUI (Terminal User Interface) animation?
-- [ ] Threads for better performance
+- [X] Threads for better performance
+- [ ] Threads for decrypting?
 - [ ] Save file permissions in CryptFile. (Read-Write-Execute)
 - [ ] Compression algorithm
 - [ ] -r option to auto delete the original files with our shredder

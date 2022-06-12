@@ -46,6 +46,9 @@ struct CryptFile {
 OpenSSL [https://www.openssl.org/]  
 pthreads [https://man7.org/linux/man-pages/man7/pthreads.7.html]
 
+## License
+[MIT](./LICENSE)
+
 ## TODO
 ```
 - [X] Section encryption/decryption.

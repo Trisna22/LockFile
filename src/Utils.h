@@ -15,7 +15,7 @@ public:
         static string convertToHex(unsigned char* arr, int size);
         static unsigned char* convertToBinary(string data); 
         static void fillCharArray(string data, int length, char* arr);
-        static long getFileSize(string fileName);
+        static off64_t getFileSize(string fileName);
         static string validateSingleFile(string path);
         static bool shredFile(string fileName);
         static char* requirePassword();
@@ -66,10 +66,10 @@ void Utils::fillCharArray(string data, int length, char* arr)
         arr[length] = '\0';
 }
 
-long Utils::getFileSize(string fileName) 
+off64_t Utils::getFileSize(string fileName) 
 {
-        struct stat st;
-        stat(fileName.c_str(), &st);
+        struct stat64 st;
+        stat64(fileName.c_str(), &st);
         return st.st_size;
 }
 

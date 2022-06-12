@@ -12,8 +12,8 @@
 #define FILL_IV         "XXXXXXXXXXXXXXXX"
 #define FILL_KEY        "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 
- #define MAX_TRHEADS     16
- 
+#define MAX_TRHEADS     32
+
 class Crypter {
 public:
 	Crypter();
@@ -256,7 +256,6 @@ bool Crypter::openCryptFile(string target, char* password)
 
                 CryptFileRead cryptFile = cryptFiles.at(i);
                 string fileName = fileNames.at(i);
-
 
                 if (progressBar) {
                         Utils::printProgressBar(progress);
@@ -803,13 +802,6 @@ Crypter::CryptFile Crypter::encryptFile(string fileName, bool fromFolder)
 
         cryptFile.sizeFileData = -1;
 
-        FILE *inputFile = fopen(fileName.c_str(), "rb");
-        if (inputFile == NULL) {
-
-                printf("[-] Failed to open the file %s! Error code: %d\n\n", fileName.c_str(), errno);
-                return cryptFile;
-        }
-
         // Set the content hash of the unencrypted file.
         if (!this->md5SumFile(fileName, cryptFile.fileHash)) {
 
@@ -826,8 +818,7 @@ Crypter::CryptFile Crypter::encryptFile(string fileName, bool fromFolder)
                 return cryptFile;
         }
 
-        // Check if file is empty.
-        if (Utils::getFileSize(fileName) == 0)
+        if (Utils::getFileSize(fileName) <= (off64_t)0)
                 cryptFile.sizeFileData = 0;
         else
                 cryptFile.sizeFileData = AESCrypter::getOutputSizeOf(fileName); // File data size.
@@ -847,7 +838,6 @@ Crypter::CryptFile Crypter::encryptFile(string fileName, bool fromFolder)
         }
 
         cryptFile.isFolder = false;
-        fclose(inputFile);
         return cryptFile;
 }
 
@@ -861,11 +851,10 @@ Crypter::CryptFile Crypter::encryptFile(string fileName, bool fromFolder)
 bool Crypter::decryptFile(CryptFileRead fileInfo, string fileName, FILE* inputFile)
 {
         // Setting up the variables.
-        unsigned long fileSize = fileInfo.sizeFileData;
+        off64_t fileSize = fileInfo.sizeFileData;
 
         // Decrypt the file to the actual file.
         FILE* decryptedOutputFile = fopen(fileName.c_str(), "wb");
-
         if (inputFile == NULL || decryptedOutputFile == NULL) {
                 printf("[-] Failed to open the input/output files! Error code: %d\n", errno);
                 return false;
@@ -873,7 +862,6 @@ bool Crypter::decryptFile(CryptFileRead fileInfo, string fileName, FILE* inputFi
 
         // Check if file even has data.
         if (fileInfo.sizeFileData == 0) {
-                printf("Skipping file %s, is empty\n", fileName.c_str());
                 fclose(decryptedOutputFile);
                 return true;
         }
@@ -1004,11 +992,12 @@ bool Crypter::encryptFolder(string folderName, string password, FILE* outputFile
         printf("[*] Currently writing encrypted file data!\n");
         
         pthread_t threadIds[folderList.size()];
-        int countOfThreads = 0;
+        int countOfThreads = 0, latestThreadsCount = 0;
 
         unsigned long offsetCounter = sizeof(CryptHeader) + sizeCryptFiles + sizePrivateKey;
 
         pthread_mutex_init(&runningMutex, NULL); // Init our mutex object.
+
         for (int i = 0; i < folderList.size(); i++) {
 
                 CryptFile cryptFile = folderList.at(i);
@@ -1016,20 +1005,17 @@ bool Crypter::encryptFolder(string folderName, string password, FILE* outputFile
                 // Increment in progress.
                 progress = ((float)i / (float)folderList.size());
 
-                // If it is a folder, we don't have to encrypt anything.
-                if (cryptFile.isFolder)
+                // If it is a folder or an empty file, we don't have to encrypt anything.
+                if (cryptFile.isFolder) {
                         continue;
+                }
                 else if (cryptFile.sizeFileData == 0) {
-
-                        printf("Empty file %s\n", cryptFile.fileName);
-                        continue;
+                        continue;  
                 }
 
                 if (progressBar) {
                         Utils::printProgressBar(progress);
                 }
-                // else
-                //         printf("[*] Written encrypted data %s (%d bytes)\n", cryptFile.fileName, sizeof(cryptFile));
 
                 // Calculate the offset to write the encrypted data to.
                 unsigned long fileOffset = offsetCounter;
@@ -1042,43 +1028,38 @@ bool Crypter::encryptFolder(string folderName, string password, FILE* outputFile
                 params->runningMutex = runningMutex;
                 params->loopId = i;
 
-                pthread_create(&threadIds[countOfThreads], NULL, Crypter::threadedEncrypt, params);
+                int code = pthread_create(&threadIds[latestThreadsCount + countOfThreads], NULL, Crypter::threadedEncrypt, params);
+                if (code != 0) {
+                        printf("\nFailed to create thread for encrypting! Error code: %d\n\n", errno);
+                        return false;
+                }
+
                 countOfThreads += 1;
 
-                // if (!this->aesCrypter.setKey(cryptFile.fileKey, AES_256_KEY_SIZE)) {
+                if (MAX_TRHEADS < folderList.size()) {
 
-                //         printf("[-] Failed to set the encryption key for encrypting file!\n\n");
-                //         return false;
-                // }
-                
-                // FILE* toEncryptFile = fopen(cryptFile.fileName, "rb");
-                
-                // // Encrypt the file with AES.
-                // unsigned long outputFileSize;
-                // if (!aesCrypter.encryptFile(toEncryptFile, outputFile, &outputFileSize)) {
+                        if (countOfThreads > MAX_TRHEADS) {
 
-                //         printf("[-] Failed to write the encrypted file to crypt file!\n\n");
-                //         return false;
-                // }
+                                // Joining all threads before continuing
+                                for (int j = 0; j < countOfThreads; j++) {
+                                        pthread_join(threadIds[latestThreadsCount +j], NULL);
+                                }
 
-                // if (cryptFile.sizeFileData != outputFileSize) {
-                //         printf("[-] Encrypting file failed, got unexpected output size!\n\n");
-                //         return false;
-                // }
+                                latestThreadsCount = countOfThreads;
+                                countOfThreads = 0;
+                        }
+                }
+        }
 
-                // if (!progressBar) {
-                //         printf("[*] Encrypted file data copy (%d bytes)\n", cryptFile.sizeFileData);
-                // }
+        // Check if there are still some threads to join.
+        if (countOfThreads != 0) {
+                for (int i = 0; i < countOfThreads; i++) {
+                        pthread_join(threadIds[latestThreadsCount + i], NULL);
+                }
         }
 
         if (progressBar)
                 Utils::printProgressBar(1);
-
-
-        for (int i = 0; i < countOfThreads; i++) {
-                if (threadIds[i] != NULL)
-                        pthread_join(threadIds[i], NULL);
-        }
         
         fclose(outputFile);
         printf("\n[!] Locking finished!\n\n");
@@ -1194,9 +1175,11 @@ void* Crypter::threadedEncrypt(void* params)
 {
         EncryptThreadParams* threadParams = (EncryptThreadParams*)params;
 
-        // printf("\n==>Thread params check: \nFilename: %s\n", threadParams->cryptFile.fileName);
-        // printf("Current thread ID: %ld\n", threadParams->loopId);
-        // printf("Offset: %ld\n\n", threadParams->offset);
+        if (threadParams->outputFile == NULL) {
+
+                fprintf(stderr, "& Failed to receive the output file from master thread!\n\n");
+                return 0;
+        }
 
         FILE* inputFile = fopen(threadParams->cryptFile.fileName, "rb");
         if (inputFile == NULL) {
@@ -1238,7 +1221,6 @@ void* Crypter::threadedEncrypt(void* params)
 
                 // Lock the mutex object.
                 pthread_mutex_lock(&threadParams->runningMutex);
-                // printf("==> Writing %s %d bytes at offset %ld\n", threadParams->cryptFile.fileName, bufferSize, writeOffset);
 
                 // Write the data at specific offset
                 if (pwrite(fileno(threadParams->outputFile), out_buf, bufferSize, writeOffset) == -1) {
@@ -1259,7 +1241,6 @@ void* Crypter::threadedEncrypt(void* params)
                 }
         }
 
-
         pthread_mutex_lock(&threadParams->runningMutex);
 
         // Final write
@@ -1269,16 +1250,12 @@ void* Crypter::threadedEncrypt(void* params)
                         threadParams->loopId, threadParams->cryptFile.fileName);
                 fclose(threadParams->outputFile);
                 return 0;
-
         }
 
         pwrite(fileno(threadParams->outputFile), out_buf, bufferSize, writeOffset);
-        // printf("====>> Writing %s %d at offset %ld\n", threadParams->cryptFile.fileName, bufferSize, writeOffset);
         writeOffset += bufferSize;
 
         pthread_mutex_unlock(&threadParams->runningMutex);
-
-        // printf("Total bytes written for %s: %ld\n", threadParams->cryptFile.fileName, writeOffset - threadParams->offset);
         
         if (threadParams->cryptFile.sizeFileData != (writeOffset - threadParams->offset)) {
                 printf("& Encrypting file %s failed, got unexpected output size!\n", threadParams->cryptFile.fileName);
@@ -1306,3 +1283,78 @@ void* Crypter::threadedEncrypt(void* params)
          **/
         return 0;
 }
+
+/**
+ * @brief 
+ * 
+ *  pthread_t threadIds[folderList.size()];
+        int countOfThreads = 0;
+
+        int totalCountThread = 0;
+
+        unsigned long offsetCounter = sizeof(CryptHeader) + sizeCryptFiles + sizePrivateKey;
+
+        pthread_mutex_init(&runningMutex, NULL); // Init our mutex object.
+
+        int cryptFileCounter = 0;
+        while (cryptFileCounter < folderList.size())  {
+
+        // for (int i = 0; i < folderList.size(); i++) {
+
+                for (int i = 0; i < MAX_TRHEADS; i++) {
+
+                        printf("CryptFileCounter: %d\n", cryptFileCounter);
+                        CryptFile cryptFile = folderList.at(cryptFileCounter + i);
+                        printf("%s\n", cryptFile.fileName);
+
+                        // Increment in progress.
+                        progress = ((float)cryptFileCounter / (float)folderList.size());
+
+                        // If it is a folder or an empty file, we don't have to encrypt anything.
+                        if (cryptFile.isFolder) {
+                                cryptFileCounter += 1;
+                                continue;
+                        }
+                        else if (cryptFile.sizeFileData == 0) {
+                                cryptFileCounter += 1;
+                                continue;  
+                        }
+
+                        if (progressBar) {
+                                Utils::printProgressBar(progress);
+                        }
+                        // else
+                        //         printf("[*] Written encrypted data %s (%d bytes)\n", cryptFile.fileName, sizeof(cryptFile));
+
+                        // Calculate the offset to write the encrypted data to.
+                        unsigned long fileOffset = offsetCounter;
+                        offsetCounter += AESCrypter::getOutputSizeOf(cryptFile.fileName);
+
+                        EncryptThreadParams* params = new EncryptThreadParameters();
+                        params->cryptFile = cryptFile;
+                        params->outputFile = outputFile;
+                        params->offset = fileOffset;
+                        params->runningMutex = runningMutex;
+                        params->loopId = cryptFileCounter;
+
+                        pthread_create(&threadIds[countOfThreads], NULL, Crypter::threadedEncrypt, params);
+
+                        countOfThreads += 1;
+                        cryptFileCounter += 1;
+                        if (i +1 >= folderList.size()) {
+                                break;
+                        }
+                }
+        }
+
+        if (progressBar)
+                Utils::printProgressBar(1);
+
+
+        for (int i = 0; i < countOfThreads; i++) {
+                if (threadIds[i] != NULL)
+                        pthread_join(threadIds[i], NULL);
+        }
+       
+ * 
+ */

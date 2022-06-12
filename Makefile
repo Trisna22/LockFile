@@ -12,7 +12,10 @@ default:
 	mkdir -p ./build/
 	mkdir -p ./src/
 	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto -pthread
-
+build:
+	mkdir -p ./build/
+	mkdir -p ./src/
+	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto -pthread
 encrypt:
 	find -name *.enc -type f -delete
 	mv ./testFiles/testFolder2 ./testFiles/testFolder
@@ -48,11 +51,11 @@ test:
 	touch ./testFiles/testFolder/empty_file
 
 	find -name *.enc -type f -delete
-	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto -pthread
+	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto -pthread -ggdb3
 	./build/$(OUTPUT_FILE) -e ./testFiles/testFolder
 
 	mv ./testFiles/testFolder ./testFiles/testFolder2
-	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto -pthread
+	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto -pthread -ggdb3
 	./build/$(OUTPUT_FILE) -d ./testFiles/testFolder.crypt
 
 	diff -r ./testFiles/testFolder2 ./testFiles/testFolder

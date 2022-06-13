@@ -73,7 +73,8 @@ pthreads [https://man7.org/linux/man-pages/man7/pthreads.7.html]
 - [~] Create a TUI (Terminal User Interface) animation?
 - [X] Threads for better performance
 - [X] -r option to auto delete the original files with our shredder
-- [ ] Threads for decrypting?
+- [X] Threads for decrypting
+- [ ] Sequential run?
 - [ ] Save file permissions in CryptFile. (Read-Write-Execute)
 - [ ] Compression algorithm
 - [ ] Adding own MIME and file extension

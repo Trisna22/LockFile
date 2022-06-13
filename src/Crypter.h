@@ -5,6 +5,8 @@
 #ifndef Crypter_H
 #define Crypter_H
 
+#define VERSION_HASH    "56de733"
+
 #define SINGLE_FILE     0x01
 #define TEMP_FILE       ".crypt_tmp"
 #define CRYPT_EXTENSION ".crypt"
@@ -62,8 +64,8 @@ private:
         
         struct __attribute__ ((packed)) CryptHeader {
                 unsigned char magic[6];         // Magic bytes.
-                
                 unsigned int countFileInfos;    // Count of file info structures. (CryptFiles)
+                unsigned char version[7];       // The version that is used to encrypt.
                 unsigned long sizeCryptFiles;   // The size of the encrypted CryptFile section headers.
                 unsigned int sizePrivateKey;    // The size of the private key.
                 // unsigned char* encryptedPrivateKey;// The RSA private key.
@@ -71,8 +73,8 @@ private:
 
         struct __attribute__ ((packed)) CryptHeaderRead {
                 unsigned char magic[6];         // Magic bytes.
-                
                 unsigned int countFileInfos;    // Count of file info structures. (CryptFiles)
+                unsigned char version[7];       // The version that is used to encrypt.
                 unsigned long sizeCryptFiles;   // The size of the encrypted CryptFile section headers.
                 unsigned int sizePrivateKey;    // The size of the private key.
                 // unsigned char* encryptedPrivateKey;// The RSA private key.
@@ -405,6 +407,7 @@ bool Crypter::readCryptHeader(string target, char* password)
         // Print out the information.
         printf("CryptHeader\n");
         printf("  Magic:                        %s\n", cryptHeader.magic);
+        printf("  Version hash:                 %s\n", cryptHeader.version);
         printf("  Size priv key:                %ld\n", cryptHeader.sizeCryptFiles);
         printf("  Size CryptFile section:       %ld\n", cryptHeader.sizeCryptFiles);
         printf("  Count file CryptFile objects: %d\n", cryptHeader.countFileInfos);
@@ -558,6 +561,14 @@ Crypter::CryptHeader Crypter::generateCryptHeader()
         cryptHeader.magic[4] = 'p';
         cryptHeader.magic[5] = 't';
 
+        cryptHeader.version[0] = VERSION_HASH[0];
+        cryptHeader.version[1] = VERSION_HASH[1];
+        cryptHeader.version[2] = VERSION_HASH[2];
+        cryptHeader.version[3] = VERSION_HASH[3];
+        cryptHeader.version[4] = VERSION_HASH[4];
+        cryptHeader.version[5] = VERSION_HASH[5];
+        cryptHeader.version[6] = VERSION_HASH[6];
+
         return cryptHeader;
 }
 
@@ -671,6 +682,7 @@ bool Crypter::writeFileToCryptFile(string fileName, FILE* outputFile) {
         printf("\n");
         printf("CryptHeader\n");
         printf("  Magic:            %s\n", cryptHeader.magic);
+        printf("  Version hash:     %s\n", cryptHeader.version);
         printf("  Count file infos: %d\n\n", cryptHeader.countFileInfos);
 
         printf("CryptFile\n");

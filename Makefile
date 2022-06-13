@@ -50,15 +50,11 @@ test:
 	cp /usr/bin/ls ./testFiles/testFolder/testFolder2/ls_example
 	touch ./testFiles/testFolder/empty_file
 
-	find -name *.enc -type f -delete
 	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto -pthread -ggdb3
-	./build/$(OUTPUT_FILE) -e ./testFiles/testFolder
+	./build/$(OUTPUT_FILE) -r -e ./testFiles/testFolder
 
-	mv ./testFiles/testFolder ./testFiles/testFolder2
 	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto -pthread -ggdb3
 	./build/$(OUTPUT_FILE) -d ./testFiles/testFolder.crypt
-
-	diff -r ./testFiles/testFolder2 ./testFiles/testFolder
 
 	diff ./testFiles/testFolder/testFolder2/ls_example /usr/bin/ls
 

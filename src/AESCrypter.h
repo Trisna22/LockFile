@@ -244,7 +244,7 @@ bool AESCrypter::decryptFile(FILE* inputFile, FILE* outputFile, off64_t *sizeInp
                 }
 
                 counter -= num_bytes_read; // We want to count the encrypted bytes, not the output bytes.
-                if (counter == 0 || counter <= 0)
+                if (counter <= 0)
                         break;
         }
 

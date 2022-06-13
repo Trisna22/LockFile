@@ -20,8 +20,9 @@ void help() {
 }
 
 void version() {
-        string versionStr = "\nAll rights served by ramb0 2021.\n";
+        string versionStr = "\nAll rights served by ramb0 2022.\n";
         versionStr += "Version 1.0\n";
+        versionStr += "Update hash 56de733\n";
         printf("%s\n", versionStr.c_str());
 }
 

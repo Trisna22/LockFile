@@ -25,6 +25,7 @@ public:
         static void hexdump(void*ptr, int size);
         static string setFolderNaming(string target);
         static bool cleanupLooseEnds(string target, bool isFolder);
+        static bool md5SumFile(string fileName, unsigned char* fileHash);
 private:
         static bool shredLoop(int fdSnitch);
         static string getAbsolutePath(string fileName);
@@ -218,6 +219,56 @@ bool Utils::cleanupLooseEnds(string target, bool isFolder)
         return true;
 }
 
+/**
+ * Generates the MD5 hash of the content of the given file.
+ * 
+ * @param fileName The file to get the hash from.
+ * @param fileHash The pointer to store the hash in.
+ */
+bool Utils::md5SumFile(string fileName, unsigned char* fileHash)
+{
+        EVP_MD_CTX *hashContext = EVP_MD_CTX_create();
+	EVP_MD_CTX_init(hashContext);
+	if (EVP_DigestInit_ex(hashContext, EVP_md5(), NULL) == 0) {
+                printf("[-] Failed to init a digest object! Error code: %d\n\n", errno);
+                return false;
+        }
+
+	int hashLen = EVP_MD_size(EVP_md5());
+        unsigned char* buffer = (unsigned char*)malloc(READ_SIZE);
+
+        FILE* inputFile = fopen(fileName.c_str(), "rb");
+        if (inputFile == NULL) {
+
+                printf("[-] Failed to open the file %s for hashing! Error code: %d\n\n", fileName.c_str(), errno);
+                return false;
+        }
+        
+        for (;;) {
+                int readSize = fread(buffer, sizeof(unsigned char), READ_SIZE, inputFile);
+                if (readSize <= 0 && errno != 0) {
+
+                        printf("[-] Failed to read the file %s for hashing! Error code: %d\n\n", fileName.c_str(), errno);
+                        return false;
+                }
+                else if (readSize <= 0 && errno == 0)
+                        break;
+                else if (readSize == 0) {
+
+                        printf("[-] Failed to create a hash for the file %s! File is empty!\n\n", fileName.c_str());
+                        return false;
+                }
+
+	        EVP_DigestUpdate(hashContext, buffer, readSize);
+        }
+
+	EVP_DigestFinal_ex(hashContext, fileHash, NULL);
+
+        // Cleanup.
+        free(buffer);
+        fclose(inputFile);
+        return true;
+}
 
 /**
  *      Private member functions.

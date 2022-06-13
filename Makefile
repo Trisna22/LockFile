@@ -50,13 +50,11 @@ test:
 	cp /usr/bin/ls ./testFiles/testFolder/testFolder2/ls_example
 	touch ./testFiles/testFolder/empty_file
 
-	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto -pthread
+	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto -pthread -ggdb3
 	./build/$(OUTPUT_FILE) -r -e ./testFiles/testFolder
 
-	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto -pthread
+	$(CC) -o $(BUILD_FOLDER)/$(OUTPUT_FILE) $(SOURCE_FOLDER)/$(MAIN_FILE) --no-warnings -lcrypto -pthread -ggdb3
 	./build/$(OUTPUT_FILE) -d ./testFiles/testFolder.crypt
-
-	diff -r ./testFiles/testFolder2 ./testFiles/testFolder
 
 	diff ./testFiles/testFolder/testFolder2/ls_example /usr/bin/ls
 

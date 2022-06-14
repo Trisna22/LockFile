@@ -479,7 +479,7 @@ bool Crypter::readCryptFiles(string target, char* password)
                 printf("  Filename length:  %d\n", cryptFile.fileNameLen);
                 printf("  Filename:         %s\n", fileNameBuffer);
                 printf("  isFolder:         %s\n", cryptFile.isFolder ? "True" : "False");
-                printf("  Permissions:      %u\n", cryptFile.permissions);
+                printf("  Permissions:      %s\n", Utils::displayPermissions(cryptFile.permissions));
                 printf("  Enc. data size:   %ld\n", cryptFile.sizeFileData);
                 printf("  File key (hex):   %s\n", Utils::convertToHex(cryptFile.fileKey, 32).c_str());
                 printf("  File IV (hex):    %s\n", Utils::convertToHex(cryptFile.fileIV, 16).c_str());
@@ -696,7 +696,7 @@ bool Crypter::writeFileToCryptFile(string fileName, FILE* outputFile) {
         printf("  Filename length:  %d\n", cryptFile.fileNameLen);
         printf("  Filename:         %s\n", cryptFile.fileName);
         printf("  isFolder:         %s\n", cryptFile.isFolder ? "True" : "False");
-        printf("  Permissions:      %u\n", cryptFile.permissions);
+        printf("  Permissions:      %s\n", Utils::displayPermissions(cryptFile.permissions));
         printf("  Enc. data size:   %ld\n", cryptFile.sizeFileData);
         printf("  File key (hex):   %s\n", Utils::convertToHex(cryptFile.fileKey, 32).c_str());
         printf("  File IV (hex):    %s\n", Utils::convertToHex(cryptFile.fileIV, 16).c_str());
@@ -1118,7 +1118,7 @@ bool Crypter::encryptFolder(string folderName, string password, FILE* outputFile
                         printf("  Filename length:  %d\n", cryptFile.fileNameLen);
                         printf("  Filename:         %s\n", cryptFile.fileName);
                         printf("  isFolder:         %s\n", cryptFile.isFolder ? "True" : "False");
-                        printf("  Permissions:      %u\n", cryptFile.permissions);
+                        printf("  Permissions:      %s\n", Utils::displayPermissions(cryptFile.permissions));
                         printf("  Enc. data size:   %ld\n", cryptFile.sizeFileData);
                         printf("  File key (hex):   %s\n", Utils::convertToHex(cryptFile.fileKey, 32).c_str());
                         printf("  File IV (hex):    %s\n", Utils::convertToHex(cryptFile.fileIV, 16).c_str());

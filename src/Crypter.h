@@ -5,7 +5,7 @@
 #ifndef Crypter_H
 #define Crypter_H
 
-#define VERSION_HASH    "b27c61f"
+#define VERSION_HASH    "12a01f7"
 
 #define SINGLE_FILE     0x01
 #define TEMP_FILE       ".crypt_tmp"

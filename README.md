@@ -46,13 +46,14 @@ The objects won't be visible without your provided password, the objects itself 
 
 ```C++
 struct CryptFile {
-       int fileNameLen;                // The size of the filename.
-       bool isFolder;                  // Is folder?
-       unsigned long sizeFileData;     // File data size.
-       unsigned char fileKey[32];      // The key of the AES encryption.
-       unsigned char fileIV[16];       // The IV of the AES encryption.
-       unsigned char fileHash[16];     // The hash of the (unencrypted) content.
-       char *fileName;                 // Filename.
+        int fileNameLen;                // The size of the filename.
+        bool isFolder;                  // Is folder?
+        unsigned short permissions;     // File permissions
+        unsigned long sizeFileData;     // File data size.
+        unsigned char fileKey[32];      // The key of the AES encryption.
+        unsigned char fileIV[16];       // The IV of the AES encryption.
+        unsigned char fileHash[16];     // The hash of the (unencrypted) content.
+        char *fileName;                 // Filename.
 };
 ```
 

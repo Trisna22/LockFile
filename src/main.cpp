@@ -13,13 +13,18 @@ void help() {
         helpStr += "-e, --encrypt               Encrypts the file with the crypter.\n";
         helpStr += "-d, --decrypt               Decrypts the file with the crypter.\n";
         helpStr += "-v, --version               Gets the version number from this tool.\n";
+        helpStr += "-q, --quiet                 No output, only when an error pops up.\n";
+        helpStr += "-r, --remove                Deletes the original file/folder with our shredder.\n";
         helpStr += "\nAll rights served by ramb0 2021.\n";
         printf("%s\n", helpStr.c_str());
 }
 
 void version() {
-        string versionStr = "\nAll rights served by ramb0 2021.\n";
+        string versionStr = "\nAll rights served by ramb0 2022.\n";
         versionStr += "Version 1.0\n";
+        versionStr += "Version hash ";
+        versionStr += VERSION_HASH;
+        versionStr += "\n";
         printf("%s\n", versionStr.c_str());
 }
 
@@ -32,54 +37,55 @@ int main(int argc, char*argv[]) {
                 return 0;
         }
 
+        Crypter crypter;
         for (int i = 1; i < argc; i++) {
 
-                string cmd = argv[i];
-                if (cmd == "-h" || cmd == "--help") {
+                string arg = argv[i];
+
+                if ((arg == "-e" || arg == "--encrypt")&& i < argc) {
+                        crypter.createCryptFile(argv[i +1], Utils::requirePassword());
+                        return 0;
+                }
+                else if (arg == "-q" || arg == "--quiet") {
+                        crypter.setQuiet();
+                        continue;
+                }
+                else if (arg == "-r" || arg == "--remove") {
+                        crypter.setRemove();
+                        continue;
+                }
+                else if ((arg == "-i" || arg == "--info") && i < argc) {
+
+                        char* passPhrase = Utils::requirePassword();
+                        crypter.readCryptHeader(argv[i +1], passPhrase);
+                        crypter.readCryptFiles(argv[i +1], passPhrase);
+                        return 0;
+                }
+                else if ((arg == "-d" || arg == "--decrypt") && i < argc) {
+
+                        crypter.openCryptFile(argv[i+1], Utils::requirePassword());
+                        return 0;
+                }
+                else if ((arg == "-c" || arg == "--check") && i < argc) {
+
+                        if (crypter.checkCryptFile(argv[i+1])) {
+
+                                printf("[!] Valid .crypt file!\n");
+                        }
+                        return 0;   
+                }
+                else if (arg == "-h" || arg == "--help") {
                         help();
                         return 0;
                 }
+                else if (arg == "-v" || arg == "--version") {
+                        version();
+                        return 0;
+                }       
                 else {
-                        string arg = argv[i];
-
-                        Crypter crypter;
-                        if ((arg == "-e" || arg == "--encrypt")&& argc == 3) {
-                                crypter.createCryptFile(argv[2], Utils::requirePassword());
-                                return 0;
-                        }
-                        else if ((arg == "-i" || arg == "--info") && argc == 3) {
-
-                                char* passPhrase = Utils::requirePassword();
-                                crypter.readCryptHeader(argv[2], passPhrase);
-                                crypter.readCryptFiles(argv[2], passPhrase);
-                                return 0;
-                        }
-                        else if ((arg == "-d" || arg == "--decrypt") && argc == 3) {
-
-                                crypter.openCryptFile(argv[2], Utils::requirePassword());
-                                return 0;
-                        }
-                        else if ((arg == "-c" || arg == "--check") && argc == 3) {
-
-                                if (crypter.checkCryptFile(argv[2])) {
-
-                                        printf("[!] Valid .crypt file!\n");
-                                }
-                                return 0;   
-                        }
-                        else if ((arg == "-h" || arg == "--help") && argc == 3) {
-                                help();
-                                return 0;
-                        }
-                        else if ((arg == "-v" || arg == "--version") && argc == 3) {
-                                version();
-                                return 0;
-                        }       
-                        else {
-                                printf("Invalid (combination of) options or arguments given!\n");
-                                usage();
-                                return 0;
-                        }
+                        printf("Invalid (combination of) options or arguments given!\n");
+                        usage();
+                        return 0;
                 }
         }
         

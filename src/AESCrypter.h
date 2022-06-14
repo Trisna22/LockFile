@@ -18,14 +18,15 @@ class AESCrypter {
 public:
         AESCrypter();
         ~AESCrypter();
-        void createRandomKey(unsigned char*);
-        void setIv(unsigned char*);
-        void setIv2(unsigned char*);
-        unsigned char* getIv();
+        static void createRandomKey(unsigned char*);
         bool setKey(unsigned char* key, int keyLen, unsigned char* iv, bool decrypt);
 
         bool encryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeOutput);
-        bool decryptFile(FILE* inputFile, FILE* outputFile, unsigned long* sizeInput);
+        bool decryptFile(FILE* inputFile, FILE* outputFile, off64_t* sizeInput);
+
+        unsigned char* encryptDecryptData(unsigned char* data, int *sizeData);
+        unsigned char* finalData(int* sizeData);
+
 
         static unsigned long getOutputSizeOf(string fileName);
 
@@ -65,23 +66,6 @@ void AESCrypter::createRandomKey(unsigned char* key)
 
         for (int i = 0; i < 32; i++)
                 key[i] = randomKey[i];
-}
-
-void AESCrypter::setIv(unsigned char* iv)
-{
-        for (int i = 0; i < 16; i++)
-                iv[i] = this->IV[i];
-}
-
-void AESCrypter::setIv2(unsigned char* iv)
-{
-        for (int i = 0; i < 16; i++)
-                this->IV[i] = iv[i];
-
-}
-
-unsigned char* AESCrypter::getIv() {
-        return this->IV;
 }
 
 bool AESCrypter::setKey(unsigned char* passedKey, int lenKey, unsigned char* passedIV = NULL, bool decrypt = false)
@@ -216,22 +200,27 @@ bool AESCrypter::encryptFile(FILE* inputFile, FILE* outputFile, unsigned long* s
         return true;
 }
 
-bool AESCrypter::decryptFile(FILE* inputFile, FILE* outputFile, unsigned long *sizeInput)
+bool AESCrypter::decryptFile(FILE* inputFile, FILE* outputFile, off64_t *sizeInput)
 {
         // Allow enough space in output buffer for additional block.
         int cipher_block_size = EVP_CIPHER_block_size(this->encryptionMethod);
         unsigned char in_buf[BUFSIZE], out_buf[BUFSIZE + cipher_block_size];
         
         int num_bytes_read, out_len;
-        unsigned long counter = *sizeInput;
+        off64_t counter = *sizeInput;
 
-        while (counter !=  0) {
+        while (counter != 0) {
 
                 if (counter < BUFSIZE)
                         num_bytes_read = fread(in_buf, sizeof(unsigned char), counter, inputFile);
-                else
+                else 
                         num_bytes_read = fread(in_buf, sizeof(unsigned char), BUFSIZE, inputFile);
 
+                if (num_bytes_read <= 0) {
+                        fprintf(stderr, "# Failed to read data for file!  Error: %s\n", strerror(errno));
+                        fclose(outputFile);
+                        return false;
+                }
 
                 // Read in data in blocks until EOF. Update the ciphering with each read.
                 if (ferror(inputFile)){
@@ -255,6 +244,8 @@ bool AESCrypter::decryptFile(FILE* inputFile, FILE* outputFile, unsigned long *s
                 }
 
                 counter -= num_bytes_read; // We want to count the encrypted bytes, not the output bytes.
+                if (counter <= 0)
+                        break;
         }
 
         // Now cipher the final block and write it out to file.
@@ -277,12 +268,44 @@ bool AESCrypter::decryptFile(FILE* inputFile, FILE* outputFile, unsigned long *s
         return true;
 }
 
+unsigned char* AESCrypter::encryptDecryptData(unsigned char* data,  int *sizeData) 
+{
+        int out_len, cipher_block_size = EVP_CIPHER_block_size(this->encryptionMethod);
+        unsigned char* out_buf = new unsigned char[BUFSIZ + cipher_block_size];
+
+        if (!EVP_CipherUpdate(this->cipherContext, out_buf, &out_len, data, *sizeData)) {
+
+                printf("# Failed encrypt our plaintext with AES!\n\n");
+                ERR_print_errors_fp(stderr);
+                return NULL;
+        }
+
+        *sizeData = out_len;
+        return out_buf;
+}
+
+unsigned char* AESCrypter::finalData(int* sizeData) 
+{
+        int cipher_block_size = EVP_CIPHER_block_size(this->encryptionMethod);
+        unsigned char* out_buf = new unsigned char[BUFSIZE + cipher_block_size];
+        if(!EVP_CipherFinal_ex(this->cipherContext, out_buf, sizeData)) {
+
+                fprintf(stderr, "# Failed to finalize cipher! OpenSSL error: %s\n", 
+                ERR_error_string(ERR_get_error(), NULL));
+                return NULL;
+        }
+
+        return out_buf;
+}
+
 unsigned long AESCrypter::getOutputSizeOf(string fileName)
 {
         int cipher_block_size = EVP_CIPHER_block_size(CIPHER_METHOD);
         unsigned long outputSize;
                 
         unsigned long fileSize = Utils::getFileSize(fileName);
+        if (fileSize == 0)
+                return fileSize;
 
         if (fileSize % cipher_block_size == 0) {
                 int times = (fileSize / cipher_block_size) + 1;

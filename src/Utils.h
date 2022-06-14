@@ -15,7 +15,7 @@ public:
         static string convertToHex(unsigned char* arr, int size);
         static unsigned char* convertToBinary(string data); 
         static void fillCharArray(string data, int length, char* arr);
-        static long getFileSize(string fileName);
+        static off64_t getFileSize(string fileName);
         static string validateSingleFile(string path);
         static bool shredFile(string fileName);
         static char* requirePassword();
@@ -24,6 +24,11 @@ public:
         static bool copyFileBufferToFilePointer(FILE* inputFile, unsigned long fileSize, FILE* outputFile);
         static void hexdump(void*ptr, int size);
         static string setFolderNaming(string target);
+        static bool cleanupLooseEnds(string target, bool isFolder);
+        static bool md5SumFile(string fileName, unsigned char* fileHash);
+        static ushort getPermissions(string path);
+        static bool setPermissions(string path, ushort perm);
+        static char* displayPermissions(ushort perm);
 private:
         static bool shredLoop(int fdSnitch);
         static string getAbsolutePath(string fileName);
@@ -66,10 +71,10 @@ void Utils::fillCharArray(string data, int length, char* arr)
         arr[length] = '\0';
 }
 
-long Utils::getFileSize(string fileName) 
+off64_t Utils::getFileSize(string fileName) 
 {
-        struct stat st;
-        stat(fileName.c_str(), &st);
+        struct stat64 st;
+        stat64(fileName.c_str(), &st);
         return st.st_size;
 }
 
@@ -90,30 +95,29 @@ string Utils::validateSingleFile(string path)
 
 bool Utils::shredFile(string fileName)
 {
-        // TODO use our shredder code from our virus.
-
         int fdSnitch = open(fileName.c_str(), O_WRONLY | O_NOCTTY);
         if (fdSnitch == -1) {
 
-                printf("[-] Failed to open the snitch file %s! Error code: %d\n\n", fileName.c_str(), errno);
+                printf("-> Failed to open the snitch file %s! Error code: %d\n\n", fileName.c_str(), errno);
                 return false;
         }
 
         // Randomizing the content of the file.
         if (!shredLoop(fdSnitch)) {
 
-                printf("[-] Failed to shred the snitch file with looping!\n\n");
-                return false;
-        }
-
-        // Zero out the filename.
-        if (!Utils::zeroOutFileName(fileName, fdSnitch)) {
-                printf("[-] Failed to zero'ing out the snitch file! Error code: %d\n\n", errno);
-                close(fdSnitch);
+                printf("-> Failed to shred the snitch file with looping!\n\n");
                 return false;
         }
 
         close(fdSnitch);
+
+        // Zero out the filename.
+        if (!Utils::zeroOutFileName(fileName, fdSnitch)) {
+                printf("-> Failed to zero'ing out the snitch file! Error code: %d\n\n", errno);
+                close(fdSnitch);
+                return false;
+        }
+
         return true;
 }
 
@@ -137,160 +141,8 @@ void Utils::printProgressBar(float progress)
                 printf("\n");
 }
 
-/**
- * Writes the content of the target filename to the given output file pointer.
- * 
- * @param fileName The target file fileName.
- * @param outputFile The pointer to the file descriptor.
- */
-bool Utils::copyFileDataToFilePointer(string fileName, FILE* outputFile)
+void Utils::hexdump(void *ptr, int buflen)
 {
-        // Open the encrypted file.
-        FILE* inputFile = fopen(fileName.c_str(), "rb");
-        if (inputFile == NULL) {
-
-                printf("[-] Failed to open the encrypted file %s! Error code: %d\n\n", fileName.c_str(), errno);
-                return false;
-        }
-
-        /**
-         * @brief sendfile() not possible here
-         * 
-         * The problem with this bit is that we want to copy the
-         * file data to a certain offset in the output file. 
-         * sendfile() doesn't support that for the offset, so we can't
-         * use it for now.
-         */
-
-        // // To get the file size.
-        // fseek(inputFile, 0, SEEK_END);
-        // unsigned long fileSize = ftell(inputFile);
-        // rewind(inputFile);
-
-        // if (sendfile64(outputFile->_fileno, inputFile->_fileno, NULL, fileSize) == -1) {
-
-        //         printf("[-] Failed to copy the bytes to output file! Error code: %d\n\n", errno);
-        //         return false;  
-        // }
-        // return true;
-
-        // Read the content of encrypted file and write
-        // into the output file.
-        char* buffer = (char*)malloc(READ_SIZE);
-        int totalBytes = 0;
-        for (;;) {
-
-                int readSize = fread(buffer, 1, READ_SIZE, inputFile);
-                if (readSize <= 0 && errno != 0) {
-
-                        printf("[-] Failed to read buffer from input file! Error code: %d\n\n", errno);
-                        return false;
-                }
-                else if (readSize <= 0 && errno == 0)
-                        break;
-
-                // Write to output file.
-                if (fwrite(buffer, 1, readSize, outputFile) <= 0) {
-                        printf("[-] Failed to write the file data into the output file! Error code: %d\n\n", errno);
-                        return false;
-                }
-        
-                totalBytes += readSize;
-        }
-
-        // Delete the encrypted file. 
-        fclose(inputFile);
-        free(buffer);
-        return true;
-}
-
-/**
- * Copies the partial content of the input file to the output file.
- * 
- * @param inputFile The input file pointer to read the buffer from.
- * @param fileSize  The size of the buffer to read.
- * @param outputFile The pointer to the output file.
- */
-bool Utils::copyFileBufferToFilePointer(FILE* inputFile, unsigned long fileSize, FILE* outputFile)
-{
-        // Get the offset to keep track on.
-        __off64_t currentOffset = ftell(inputFile);
-
-        if (sendfile64(outputFile->_fileno, inputFile->_fileno, &currentOffset,  fileSize) == -1) {
-                printf("[-] Failed to copy the bytes from input file! Error code: %d\n\n", errno);
-                return false;
-        }
-
-        // Adjust the offset again for the input file.
-        fseek(inputFile, currentOffset, SEEK_SET);
-        fclose(outputFile);
-
-        return true;
-
-        /**
-         * @brief 
-         * 
-         * Dead code, because we have a solution to shorten this with the sendfile() syscall.
-         * 
-         **/
-        // char* buffer = (char*)malloc(READ_SIZE);
-
-        // // When the size of the file is smaller than the read size.
-        // if (fileSize < READ_SIZE) {
-
-        //         int readSize = fread(buffer, 1, fileSize, inputFile);
-        //         if (readSize <= 0 && errno != 0) {
-        //                 printf("[-] Failed to read buffer from input file! Error code: %d\n\n", errno);
-        //                 return false;
-        //         }
-
-        //         if (fwrite(buffer, 1, readSize, outputFile) <= 0) {
-
-        //                 printf("[-] Failed to write the input data to the output file! Error code: %d\n\n", errno);
-        //                 return false;
-        //         }   
-
-        //         // Cleanup, WARNING: Do not close the inputFile, we still need it.
-        //         free(buffer);
-        //         fclose(outputFile);    
-        //         return true; 
-        // }
-
-        // unsigned long counter = fileSize;
-        // while (counter != 0) {
-
-        //         // Write data to output.
-        //         int readSize;
-        //         if (counter < READ_SIZE) {
-        //                 readSize = fread(buffer, 1, counter, inputFile);
-        //                 counter -= counter;
-        //         }
-        //         else {
-        //                 readSize = fread(buffer, 1, READ_SIZE, inputFile);
-        //                 counter -= READ_SIZE;
-        //         }
-              
-        //         if (readSize <= 0) {
-
-        //                 printf("[-] Failed to read buffer from input file! Error code: %d\n\n", errno);
-        //                 return false;
-        //         }
-              
-        //         if (fwrite(buffer, 1, readSize, outputFile) <= 0) {
-
-        //                 printf("[-] Failed to write the input data to the output file! Error code: %d\n\n", errno);
-        //                 return false;
-        //         }
-        // }
-
-        // // Cleanup, WARNING: Do not close the inputFile, we still need it.
-        // free(buffer);
-        // fclose(outputFile);    
-        // return true; 
-}
-
-
-void Utils::hexdump(void *ptr, int buflen) {
         unsigned char *buf = (unsigned char*)ptr;
         int i, j;
         for (i=0; i<buflen; i+=16) {
@@ -309,7 +161,8 @@ void Utils::hexdump(void *ptr, int buflen) {
         }
 }
 
-string Utils::setFolderNaming(string target) {
+string Utils::setFolderNaming(string target) 
+{
         
         struct stat fstat;
         stat(target.c_str(), &fstat);
@@ -326,6 +179,133 @@ string Utils::setFolderNaming(string target) {
         return target;
 }
 
+bool Utils::cleanupLooseEnds(string target, bool isFolder) 
+{
+        if (!isFolder) {
+                return Utils::shredFile(target);
+        }
+
+        DIR* dirHandler = opendir(target.c_str());
+        if (dirHandler == 0) {
+                printf("-> Failed to open the directory for deleting %s!\n\n Error code: %d\n", target.c_str(), errno);
+                return false;
+        }
+
+        struct dirent* fileHandler;
+        while (fileHandler = readdir(dirHandler)) {
+
+                if ((string)fileHandler->d_name == "." || (string)fileHandler->d_name == "..")
+                        continue;
+
+                if (fileHandler->d_type == DT_DIR) {
+
+                        if (!Utils::cleanupLooseEnds(target + "/" + fileHandler->d_name, true)) {
+                                return false;
+                        }
+                }
+                else {
+                        if (!Utils::shredFile(target + "/" + fileHandler->d_name)) {
+                                return false;
+                        }
+                }
+        }
+
+        closedir(dirHandler);
+
+        // Delete this folder.
+        if (rmdir(target.c_str()) == -1) {
+
+                printf("-> Failed to remove folder %s! Error code: %d\n\n", target.c_str(), errno);
+                return false;
+        }
+        
+        return true;
+}
+
+/**
+ * Generates the MD5 hash of the content of the given file.
+ * 
+ * @param fileName The file to get the hash from.
+ * @param fileHash The pointer to store the hash in.
+ */
+bool Utils::md5SumFile(string fileName, unsigned char* fileHash)
+{
+        EVP_MD_CTX *hashContext = EVP_MD_CTX_create();
+	EVP_MD_CTX_init(hashContext);
+	if (EVP_DigestInit_ex(hashContext, EVP_md5(), NULL) == 0) {
+                printf("-> Failed to init a digest object! Error code: %d\n\n", errno);
+                return false;
+        }
+
+	int hashLen = EVP_MD_size(EVP_md5());
+        unsigned char* buffer = (unsigned char*)malloc(READ_SIZE);
+
+        FILE* inputFile = fopen(fileName.c_str(), "rb");
+        if (inputFile == NULL) {
+
+                printf("-> Failed to open the file %s for hashing! Error code: %d\n\n", fileName.c_str(), errno);
+                return false;
+        }
+        
+        for (;;) {
+                int readSize = fread(buffer, sizeof(unsigned char), READ_SIZE, inputFile);
+                if (readSize <= 0 && errno != 0) {
+
+                        printf("-> Failed to read the file %s for hashing! Error code: %d\n\n", fileName.c_str(), errno);
+                        return false;
+                }
+                else if (readSize <= 0 && errno == 0)
+                        break;
+                else if (readSize == 0) {
+
+                        printf("-> Failed to create a hash for the file %s! File is empty!\n\n", fileName.c_str());
+                        return false;
+                }
+
+	        EVP_DigestUpdate(hashContext, buffer, readSize);
+        }
+
+	EVP_DigestFinal_ex(hashContext, fileHash, NULL);
+
+        // Cleanup.
+        free(buffer);
+        fclose(inputFile);
+        return true;
+}
+
+ushort Utils::getPermissions(string path)
+{
+        struct stat st;
+        stat(path.c_str(), &st);
+        return st.st_mode;
+}
+
+bool Utils::setPermissions(string path, ushort perm)
+{
+        if (chmod(path.c_str(), perm) == -1) {
+
+                printf("-> Failed to set permissions for %s to %u! Error code: %d\n\n", path.c_str(), perm, errno);
+                return false;
+        }
+
+        return true;
+}
+
+char* Utils::displayPermissions(ushort perm) {
+
+        char* modeval = new char [sizeof(char) * 9 + 1];
+        modeval[0] = (perm & S_IRUSR) ? 'r' : '-';
+        modeval[1] = (perm & S_IWUSR) ? 'w' : '-';
+        modeval[2] = (perm & S_IXUSR) ? 'x' : '-';
+        modeval[3] = (perm & S_IRGRP) ? 'r' : '-';
+        modeval[4] = (perm & S_IWGRP) ? 'w' : '-';
+        modeval[5] = (perm & S_IXGRP) ? 'x' : '-';
+        modeval[6] = (perm & S_IROTH) ? 'r' : '-';
+        modeval[7] = (perm & S_IWOTH) ? 'w' : '-';
+        modeval[8] = (perm & S_IXOTH) ? 'x' : '-';
+        modeval[9] = '\0';
+        return modeval;     
+}
 
 /**
  *      Private member functions.

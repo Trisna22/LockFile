@@ -74,8 +74,8 @@ pthreads [https://man7.org/linux/man-pages/man7/pthreads.7.html]
 - [X] Threads for better performance
 - [X] -r option to auto delete the original files with our shredder
 - [X] Threads for decrypting
+- [X] Save file permissions in CryptFile. (Read-Write-Execute)
 - [ ] Sequential run?
-- [ ] Save file permissions in CryptFile. (Read-Write-Execute)
 - [ ] Compression algorithm
 - [ ] Adding own MIME and file extension
 - [ ] -q option to minimize output?

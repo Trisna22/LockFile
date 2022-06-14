@@ -45,6 +45,7 @@ private:
         struct __attribute__ ((packed)) CryptFile {
                 int fileNameLen;                // The size of the filename.
                 bool isFolder;                  // Is folder?
+                unsigned short permissions;     // File permissions
                 unsigned long sizeFileData;     // File data size.
                 unsigned char fileKey[32];      // The key of the AES encryption.
                 unsigned char fileIV[16];       // The IV of the AES encryption.
@@ -55,6 +56,7 @@ private:
         struct __attribute__ ((packed)) CryptFileRead {
                 int fileNameLen;                // The size of the filename.
                 bool isFolder;                  // Is folder?
+                unsigned short permissions;     // File permissions
                 unsigned long sizeFileData;     // File data size.
                 unsigned char fileKey[32];      // The key of the AES encryption.
                 unsigned char fileIV[16];       // The IV of the AES encryption.
@@ -477,6 +479,7 @@ bool Crypter::readCryptFiles(string target, char* password)
                 printf("  Filename length:  %d\n", cryptFile.fileNameLen);
                 printf("  Filename:         %s\n", fileNameBuffer);
                 printf("  isFolder:         %s\n", cryptFile.isFolder ? "True" : "False");
+                printf("  Permissions:      %u\n", cryptFile.permissions);
                 printf("  Enc. data size:   %ld\n", cryptFile.sizeFileData);
                 printf("  File key (hex):   %s\n", Utils::convertToHex(cryptFile.fileKey, 32).c_str());
                 printf("  File IV (hex):    %s\n", Utils::convertToHex(cryptFile.fileIV, 16).c_str());
@@ -590,6 +593,10 @@ Crypter::CryptFile Crypter::generateCryptFolder(string folderName)
 
         cryptFile.fileNameLen = folderName.length() + 1;
         cryptFile.sizeFileData = 0;
+
+        // Get the file permissions.
+        cryptFile.permissions = Utils::getPermissions(folderName);
+
         return cryptFile;
 }
 
@@ -689,6 +696,7 @@ bool Crypter::writeFileToCryptFile(string fileName, FILE* outputFile) {
         printf("  Filename length:  %d\n", cryptFile.fileNameLen);
         printf("  Filename:         %s\n", cryptFile.fileName);
         printf("  isFolder:         %s\n", cryptFile.isFolder ? "True" : "False");
+        printf("  Permissions:      %u\n", cryptFile.permissions);
         printf("  Enc. data size:   %ld\n", cryptFile.sizeFileData);
         printf("  File key (hex):   %s\n", Utils::convertToHex(cryptFile.fileKey, 32).c_str());
         printf("  File IV (hex):    %s\n", Utils::convertToHex(cryptFile.fileIV, 16).c_str());
@@ -855,6 +863,9 @@ Crypter::CryptFile Crypter::encryptFile(string fileName, bool fromFolder)
         AESCrypter::createRandomKey(cryptFile.fileKey);
         cryptFile.fileKey[AES_256_KEY_SIZE] = '\0'; // For string termination.
         cryptFile.sizeFileData = AESCrypter::getOutputSizeOf(fileName); // File data size.
+
+        // Get the file permissions.
+        cryptFile.permissions = Utils::getPermissions(fileName);
 
         // Create a CryptFile object to store the data in the header.
         // First check if file is part of folder structure.
@@ -1107,6 +1118,7 @@ bool Crypter::encryptFolder(string folderName, string password, FILE* outputFile
                         printf("  Filename length:  %d\n", cryptFile.fileNameLen);
                         printf("  Filename:         %s\n", cryptFile.fileName);
                         printf("  isFolder:         %s\n", cryptFile.isFolder ? "True" : "False");
+                        printf("  Permissions:      %u\n", cryptFile.permissions);
                         printf("  Enc. data size:   %ld\n", cryptFile.sizeFileData);
                         printf("  File key (hex):   %s\n", Utils::convertToHex(cryptFile.fileKey, 32).c_str());
                         printf("  File IV (hex):    %s\n", Utils::convertToHex(cryptFile.fileIV, 16).c_str());
@@ -1139,10 +1151,8 @@ bool Crypter::decryptFolder(CryptFileRead cryptFile, string folderName)
                 return false; 
         }
 
-        // TODO later?
-        // File permissions from cryptFile.permissions
-
-        return true;
+        // Set file permissions from object.
+        return Utils::setPermissions(folderName, cryptFile.permissions);
 }
 
 /**
@@ -1413,6 +1423,12 @@ void *Crypter::threadedDecrypt(void* params)
 
         fclose(decryptedOutputFile);
 
+        // Set file permissions.
+        if (!Utils::setPermissions(threadParams->fileName, threadParams->cryptFile.permissions)) {
+                fclose(threadParams->inputFile);
+                return 0;
+        }
+
         // Validate the file with the hash.
         unsigned char hashCheck[16];
         if (!Utils::md5SumFile(threadParams->fileName, hashCheck)) {
@@ -1433,5 +1449,3 @@ void *Crypter::threadedDecrypt(void* params)
         free(threadParams);
         return 0;
 }
-
-// Total size (test): 145052 bytes
